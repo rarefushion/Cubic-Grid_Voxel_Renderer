@@ -86,7 +86,7 @@ public unsafe class MeshMaterial
             texture.Pixels
         );
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMinFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
 
@@ -96,7 +96,7 @@ public unsafe class MeshMaterial
         GL.EnableVertexAttribArray(0);
         GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, stride, (void*)sizeof(Vector3));
         GL.EnableVertexAttribArray(1);
-        GL.VertexAttribPointer(2, 3, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(Vector3)*2));
+        GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(Vector3)*2));
         GL.EnableVertexAttribArray(2);
         GL.BindVertexArray(0);
 
@@ -155,7 +155,7 @@ public unsafe class MeshMaterial
         public uint IndexCount;
     }
     
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Vertex
     {
         public Vector3 Position;

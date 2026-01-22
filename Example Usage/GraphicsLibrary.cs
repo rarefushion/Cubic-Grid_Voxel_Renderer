@@ -1,6 +1,8 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Silk.NET.GLFW;
 using Silk.NET.OpenGL;
+using StbImageSharp;
 
 public unsafe static class GraphicsLibrary
 {
@@ -98,20 +100,43 @@ public unsafe static class GraphicsLibrary
         graphics.DeleteShader(fragmentShader);
     }
 
+    public static Image LoadImage(string path, bool flip = true) =>
+        LoadImage(new FileInfo(path), flip);
+
+    public static Image LoadImage(FileInfo path, bool flip = true)
+    {
+        Image toReturn;
+        using (Stream stream = path.OpenRead())
+        {
+            ImageResult imageResult = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+            toReturn = new Image
+                    {
+                        Width = imageResult.Width,
+                        Height = imageResult.Height,
+                        // Pin the byte array in memory and get a pointer to the raw pixel data
+                        Pixels = (byte*)Marshal.AllocHGlobal(imageResult.Data.Length)
+                    };
+
+            // Copy the data to the unmanaged memory
+            Marshal.Copy(imageResult.Data, 0, (IntPtr)toReturn.Pixels, imageResult.Data.Length);
+        }
+        if (flip)
+            return FlipImage(toReturn);
+        else
+            return toReturn;
+    }
+
     public static Image FlipImage(Image image)
     {
-        // Because the bytes are groups of color (4 floats) we have to group them before fliping.
-        Vector4[] colors = new Vector4[image.Height * image.Width];
-        for (int p = 0; p < colors.Length; p += 4)
-            colors[p / 4] = new Vector4(image.Pixels[p], image.Pixels[p + 1], image.Pixels[p + 2], image.Pixels[p + 3]);
-        
-        byte[] fliped = new byte[colors.Length * 4];
-        for (int p = 0; p < colors.Length; p++)
+        int count = image.Height * image.Width;
+        byte[] fliped = new byte[count * 4];
+        for (int p = 0; p < count; p++)
         {
-            fliped[fliped.Length - ((p * 4) + 0) - 1] = (byte)colors[p].W;
-            fliped[fliped.Length - ((p * 4) + 1) - 1] = (byte)colors[p].Z;
-            fliped[fliped.Length - ((p * 4) + 2) - 1] = (byte)colors[p].Y;
-            fliped[fliped.Length - ((p * 4) + 3) - 1] = (byte)colors[p].X;
+            int index = p * 4;
+            fliped[fliped.Length - 1 - (index + 0)] = image.Pixels[index + 3];
+            fliped[fliped.Length - 1 - (index + 1)] = image.Pixels[index + 2];
+            fliped[fliped.Length - 1 - (index + 2)] = image.Pixels[index + 1];
+            fliped[fliped.Length - 1 - (index + 3)] = image.Pixels[index + 0];
         }
 
         fixed (byte* ptr = fliped)

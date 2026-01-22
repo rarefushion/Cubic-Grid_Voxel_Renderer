@@ -1,12 +1,13 @@
 #version 330 core
 
-layout (location = 0) in int aBlock;
+// This needs to be a float. shader code hates whole numbers.
+layout (location = 0) in float aBlock;
 
-out int vBlock;
+out float vBlock;
 out vec3 vWorldPos;
 
 uniform vec3 uChunkPos;
-uniform int size;
+uniform float size;
 
 uniform mat4 view;
 uniform mat4 projection;
@@ -14,7 +15,8 @@ uniform mat4 projection;
 void main()
 {
     vBlock = aBlock;
-    vec3 pos = uChunkPos + vec3(mod(gl_VertexID, size), mod(gl_VertexID / size, size), gl_VertexID / (size * size));
+    float index = float(gl_VertexID);
+    vec3 pos = uChunkPos + vec3(floor(mod(index, size)), floor(mod(index / size, size)), floor(index / (size * size)));
     vWorldPos = pos;
     gl_Position = projection * view * vec4(pos, 1.0);
 }

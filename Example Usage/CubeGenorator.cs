@@ -48,23 +48,6 @@ public unsafe static class CubeGenorator
                 indices[indice + (face * 6)] = (uint)(vertIndexForTris[indice] + (face * 4));
         }
 
-        // Load Atlas
-        Image img;
-        using (Stream stream = File.OpenRead(Path.Combine(Program.assets.FullName, "White.png")))
-        {
-            ImageResult imageResult = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
-            img = new Image
-                    {
-                        Width = imageResult.Width,
-                        Height = imageResult.Height,
-                        // Pin the byte array in memory and get a pointer to the raw pixel data
-                        Pixels = (byte*)Marshal.AllocHGlobal(imageResult.Data.Length)
-                    };
-
-            // Copy the data to the unmanaged memory
-            Marshal.Copy(imageResult.Data, 0, (IntPtr)img.Pixels, imageResult.Data.Length);
-        }
-
-        material.CreateMesh(verts, indices, GraphicsLibrary.FlipImage(img));
+        material.CreateMesh(verts, indices, GraphicsLibrary.LoadImage(Path.Combine(Program.assets.FullName, "White.png")));
     }
 }
