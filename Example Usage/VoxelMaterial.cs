@@ -10,7 +10,9 @@ public unsafe class VoxelMaterial
     int projectionLocation;
     int viewLocation;
     int chunkPosLocation;
+    int chunkIndexLocation;
     uint tbo;
+    uint chunkShaderStorageBuffer;
 
     public List<Chunk> chunks = [];
 
@@ -19,20 +21,18 @@ public unsafe class VoxelMaterial
     public unsafe void AssignChunkRendering(Chunk chunk)
     {
         GL.UseProgram(shaderProgram);
+        // Assign chunk blocks to shader storage buffer
+        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
+        fixed (int* buf = chunk.blocks)
+        {
+            nuint size = (nuint)(chunk.blocks.Length * sizeof(int));
+            GL.BufferSubData(BufferTargetARB.ShaderStorageBuffer, chunk.worldIndex * ChunkInfo.sizeCubed * sizeof(int), size, buf);
+        }
 
         uint vao = GL.GenVertexArray();
         GL.BindVertexArray(vao);
         chunk.Vao = vao;
-        uint vbo = GL.GenBuffer();
-        GL.BindBuffer(BufferTargetARB.ArrayBuffer, vbo);
-        fixed (int* buf = chunk.blocks)
-        {
-            nuint size = (nuint)(chunk.blocks.Length * sizeof(int));
-            GL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(chunk.blocks.Length * sizeof(int)), buf, BufferUsageARB.StaticDraw);
-            GL.BufferSubData(BufferTargetARB.ArrayBuffer, 0, size, buf); 
-        }
-        uint stride = (uint)sizeof(int);
-        GL.VertexAttribPointer(0, 1, VertexAttribPointerType.Int, false, stride, (void*)0); // Block
+        GL.VertexAttribPointer(0, 1, VertexAttribPointerType.Byte, false, sizeof(byte), (void*)0);
         GL.EnableVertexAttribArray(0);
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
         GL.BindVertexArray(0);
@@ -49,16 +49,19 @@ public unsafe class VoxelMaterial
         GL.UniformMatrix4(projectionLocation, 1, false, (float*)&projection);
         GL.UniformMatrix4(viewLocation, 1, false, (float*)&viewMatrix);
         
+        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
         foreach (Chunk chunk in chunks)
         {
             GL.Uniform3(chunkPosLocation, chunk.position);
+            GL.Uniform1(chunkIndexLocation, chunk.worldIndex);
             GL.BindVertexArray(chunk.Vao);
             GL.DrawArrays(PrimitiveType.Points, 0, (uint)chunk.blocks.Length);
         }
+        GL.OutputErrors("Voxel Mat Render");
     }
 
-    public VoxelMaterial(ICamera camera, int chunkSize, FileInfo[] textureLocations)
+    public VoxelMaterial(ICamera camera, int chunkSize, int worldLength, FileInfo[] textureLocations)
     {
         this.camera = camera;
 
@@ -75,6 +78,20 @@ public unsafe class VoxelMaterial
         viewLocation = GL.GetUniformLocation(shaderProgram, "view");
         GL.Uniform1(GL.GetUniformLocation(shaderProgram, "size"), (float)chunkSize);
         chunkPosLocation = GL.GetUniformLocation(shaderProgram, "uChunkPos");
+        chunkIndexLocation = GL.GetUniformLocation(shaderProgram, "uChunkIndex");
+        // Shader Storage Buffer Object for chunk blocks
+        int worldTotalSize = worldLength * worldLength * worldLength * ChunkInfo.sizeCubed;
+        int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
+        if (worldTotalSize * sizeof(float) > maxSSBOSize)
+            throw new Exception($"World size is too big for shader storage buffer. Max size: {maxSSBOSize / 1024 / 1024} MB");
+        chunkShaderStorageBuffer = GL.GenBuffer();
+        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
+        int[] defaults = [.. Enumerable.Repeat(0, worldTotalSize)];
+        fixed (int* buf = defaults)
+        {
+            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(worldTotalSize * sizeof(int)), buf, BufferUsageARB.DynamicDraw);
+        }
+        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 0, chunkShaderStorageBuffer);
 
         // Textures
         uint maxX = 0, maxY = 0;
