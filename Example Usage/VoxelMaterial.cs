@@ -26,7 +26,7 @@ public unsafe class VoxelMaterial
         fixed (int* buf = chunk.blocks)
         {
             nuint size = (nuint)(chunk.blocks.Length * sizeof(int));
-            GL.BufferSubData(BufferTargetARB.ShaderStorageBuffer, chunk.worldIndex * ChunkInfo.sizeCubed * sizeof(int), size, buf);
+            GL.BufferSubData(BufferTargetARB.ShaderStorageBuffer, chunk.worldIndex * ChunkInfo.volume * sizeof(int), size, buf);
         }
 
         uint vao = GL.GenVertexArray();
@@ -61,7 +61,7 @@ public unsafe class VoxelMaterial
         GL.OutputErrors("Voxel Mat Render");
     }
 
-    public VoxelMaterial(ICamera camera, int chunkSize, int worldLength, FileInfo[] textureLocations)
+    public VoxelMaterial(ICamera camera, int chunkLength, int worldLength, FileInfo[] textureLocations)
     {
         this.camera = camera;
 
@@ -76,11 +76,12 @@ public unsafe class VoxelMaterial
 
         projectionLocation = GL.GetUniformLocation(shaderProgram, "projection");
         viewLocation = GL.GetUniformLocation(shaderProgram, "view");
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "size"), (float)chunkSize);
+        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "length"), chunkLength);
+        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "volume"), chunkLength * chunkLength * chunkLength);
         chunkPosLocation = GL.GetUniformLocation(shaderProgram, "uChunkPos");
         chunkIndexLocation = GL.GetUniformLocation(shaderProgram, "uChunkIndex");
         // Shader Storage Buffer Object for chunk blocks
-        int worldTotalSize = worldLength * worldLength * worldLength * ChunkInfo.sizeCubed;
+        int worldTotalSize = worldLength * worldLength * worldLength * ChunkInfo.volume;
         int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
         if (worldTotalSize * sizeof(float) > maxSSBOSize)
             throw new Exception($"World size is too big for shader storage buffer. Max size: {maxSSBOSize / 1024 / 1024} MB");

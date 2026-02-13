@@ -9,7 +9,7 @@ public static class ChunkManager
     {
         FileInfo[] textures = Directory.CreateDirectory(Path.Combine(Program.assets.FullName, "Textures")).GetFiles();
         int worldLength = 12;
-        material = new VoxelMaterial(Program.mainCam, ChunkInfo.size, worldLength, textures);
+        material = new VoxelMaterial(Program.mainCam, ChunkInfo.length, worldLength, textures);
         int index = 0;
         for (int x = -worldLength / 2; x < worldLength / 2; x++)
         for (int y = -worldLength + 2; y < 2; y++)
@@ -17,11 +17,11 @@ public static class ChunkManager
         {
             Chunk chunk = new()
             {
-                position = new Vector3(x, y, z) * ChunkInfo.size,
-                blocks = new int[ChunkInfo.sizeCubed],
+                position = new Vector3(x, y, z) * ChunkInfo.length,
+                blocks = new int[ChunkInfo.volume],
                 worldIndex = index++
             };
-            for (int i = 0; i < ChunkInfo.sizeCubed; i++)
+            for (int i = 0; i < ChunkInfo.volume; i++)
             {
                 chunk.blocks[i] = (float)(ChunkInfo.localPosByIndex(i).Y + chunk.position.Y) switch
                 {

@@ -1,8 +1,8 @@
 #version 430 core
 
-in float gBlock;
+in flat int gBlock;
 in vec2 gUV;
-in float gFace;
+in flat int gFace;
 
 out vec4 FragColor;
 
@@ -11,5 +11,5 @@ uniform float[512] textureIDs;
 
 void main()
 {
-    FragColor = texture(textureArray, vec3(gUV, textureIDs[(int(gBlock + 0.5) * 6) + int(gFace + 0.5)]));
+    FragColor = texture(textureArray, vec3(gUV, textureIDs[gBlock * 6 + gFace]));
 }
