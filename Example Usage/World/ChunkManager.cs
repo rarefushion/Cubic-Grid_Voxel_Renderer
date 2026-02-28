@@ -1,40 +1,50 @@
 using System.Numerics;
+using Silk.NET.Maths;
 
 public static class ChunkManager
 {
-    public static Dictionary<Vector3, Chunk> chunkByPos = [];
+    public static ChunkCluster cluster;
     public static VoxelMaterial material;
 
     public static void Load()
     {
         FileInfo[] textures = Directory.CreateDirectory(Path.Combine(Program.assets.FullName, "Textures")).GetFiles();
-        int worldLength = 12;
-        material = new VoxelMaterial(Program.mainCam, ChunkInfo.length, worldLength, textures);
-        int index = 0;
-        for (int x = -worldLength / 2; x < worldLength / 2; x++)
-        for (int y = -worldLength + 2; y < 2; y++)
-        for (int z = -worldLength / 2; z < worldLength / 2; z++)
+        int worldChunkLength = 16, worldLength = worldChunkLength * ChunkInfo.length;
+        material = new VoxelMaterial(Program.mainCam, ChunkInfo.length, worldChunkLength, textures);
+        Vector3 worldPosition = -Vector3.One * worldLength / 2;
+        worldPosition.Y += ChunkInfo.length * 2;
+        cluster = new(ChunkInfo.length, Vector3D<int>.One * worldChunkLength);
+        for (int z = (int)worldPosition.Z; z < (int)worldPosition.Z + worldLength; z += ChunkInfo.length)
+        for (int x = (int)worldPosition.X; x < (int)worldPosition.X + worldLength; x += ChunkInfo.length)
+        for (int y = (int)worldPosition.Y; y < (int)worldPosition.Y + worldLength; y += ChunkInfo.length)
         {
+            Vector3D<int> chunkPos = new(x, y, z);
             Chunk chunk = new()
             {
-                position = new Vector3(x, y, z) * ChunkInfo.length,
-                blocks = new int[ChunkInfo.volume],
-                worldIndex = index++
+                position = chunkPos,
+                worldIndex = cluster.IndexByGlobalPos(chunkPos)
             };
+            Span<int> blocks = cluster.GetChunkByIndex(chunk.worldIndex);
             for (int i = 0; i < ChunkInfo.volume; i++)
             {
-                chunk.blocks[i] = (float)(ChunkInfo.localPosByIndex(i).Y + chunk.position.Y) switch
+                Vector3 tmp = ChunkInfo.LocalPosByIndex(i); // ChunkInfo Vector3s need updating
+                Vector3D<int> blockPos = new Vector3D<int>((int)tmp.X, (int)tmp.Y, (int)tmp.Z) + chunk.position;
+                blocks[i] = blockPos.Y switch
                 {
                     > 0 => (int)Block.Air,
-                    0f => (int)Block.Grass,
+                    0 => (int)Block.Grass,
                     > -5 => (int)Block.Dirt,
+                    -16 => (int)Block.Air,
+                    -31 => (int)Block.Air,
+                    -49 => (int)Block.Air,
                     _ => (int)Block.Stone,
                 };
-                Vector3 blockPos = ChunkInfo.localPosByIndex(i) + chunk.position;
-                chunk.blocks[i] = (blockPos.X == -blockPos.Y) ? (int)Block.Grass : chunk.blocks[i];
-                chunk.blocks[i] = (blockPos.Z == -blockPos.Y) ? (int)Block.Grass : chunk.blocks[i];
+                blocks[i] = (blockPos.X == -blockPos.Y) ? (int)Block.Grass : blocks[i];
+                blocks[i] = (blockPos.Z == -blockPos.Y) ? (int)Block.Grass : blocks[i];
+                blocks[i] = (blockPos.X == blockPos.Y) ? (int)Block.Grass : blocks[i];
+                blocks[i] = (blockPos.Z == blockPos.Y) ? (int)Block.Grass : blocks[i];
             }
-            material.AssignChunkRendering(chunk);
+            material.AssignChunkRendering(chunk, blocks);
         }
     }
 }

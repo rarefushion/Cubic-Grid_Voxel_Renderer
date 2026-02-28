@@ -1,9 +1,8 @@
-using System.Numerics;
+using Silk.NET.Maths;
 
 public class Chunk
 {
-    public Vector3 position;
-    public int[] blocks;
+    public Vector3D<int> position;
     public int worldIndex;
 
 
