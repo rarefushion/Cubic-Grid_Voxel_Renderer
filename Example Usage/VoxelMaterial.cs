@@ -158,7 +158,14 @@ public unsafe class VoxelMaterial
             textureIDs.Add(textureIndexByName[block.faceLeft]);
             textureIDs.Add(textureIndexByName[block.faceRight]);
         }
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "textureIDs"), textureIDs.ToArray());
+        uint TextureIDShaderStorageBuffer = GL.GenBuffer();
+        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, TextureIDShaderStorageBuffer);
+        fixed (float* buf = textureIDs.ToArray())
+        {
+            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(textureIDs.Count * sizeof(float)), buf, BufferUsageARB.DynamicDraw);
+        }
+        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 1, TextureIDShaderStorageBuffer);
+        // GL.Uniform1(GL.GetUniformLocation(shaderProgram, "textureIDs"), textureIDs.ToArray());
 
         Program.window.Render += Render;
         GL.OutputErrors("Voxel Mat Instantiator");

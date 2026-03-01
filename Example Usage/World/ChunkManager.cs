@@ -33,6 +33,7 @@ public static class ChunkManager
                 {
                     > 0 => (int)Block.Air,
                     0 => (int)Block.Grass,
+                    -2 => (int)Block.Air,
                     > -5 => (int)Block.Dirt,
                     -16 => (int)Block.Air,
                     -31 => (int)Block.Air,

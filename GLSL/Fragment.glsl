@@ -7,7 +7,7 @@ in flat int gFace;
 out vec4 FragColor;
 
 uniform sampler2DArray textureArray;
-uniform float[512] textureIDs;
+layout(binding=1) buffer TextureIDBuffer { flat float textureIDs[]; };
 
 void main()
 {
