@@ -9,7 +9,7 @@ public static class ChunkManager
     public static void Load()
     {
         FileInfo[] textures = Directory.CreateDirectory(Path.Combine(Program.assets.FullName, "Textures")).GetFiles();
-        int worldChunkLength = 16, worldLength = worldChunkLength * ChunkInfo.length;
+        int worldChunkLength = 48, worldLength = worldChunkLength * ChunkInfo.length;
         material = new VoxelMaterial(Program.mainCam, ChunkInfo.length, worldChunkLength, textures);
         Vector3 worldPosition = -Vector3.One * worldLength / 2;
         worldPosition.Y += ChunkInfo.length * 2;
@@ -40,10 +40,8 @@ public static class ChunkManager
                     -49 => (int)Block.Air,
                     _ => (int)Block.Stone,
                 };
-                blocks[i] = (blockPos.X == -blockPos.Y) ? (int)Block.Grass : blocks[i];
-                blocks[i] = (blockPos.Z == -blockPos.Y) ? (int)Block.Grass : blocks[i];
-                blocks[i] = (blockPos.X == blockPos.Y) ? (int)Block.Grass : blocks[i];
-                blocks[i] = (blockPos.Z == blockPos.Y) ? (int)Block.Grass : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? (int)Block.Grass : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (int)Block.Grass : blocks[i];
             }
             material.AssignChunkRendering(chunk, blocks);
         }
