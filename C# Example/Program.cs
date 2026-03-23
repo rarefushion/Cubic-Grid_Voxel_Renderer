@@ -53,12 +53,12 @@ static class Program
 
         // Create Blocks
         // Faces are named by the Assets/Textures file name.
-        Dictionary<int, string[]> blockFacesById = new()
+        Dictionary<int, BlockRenderData> renderDataByBlock = new()
         {
-            {0, ["Null", "Null", "Null", "Null", "Null", "Null"]},                          // Air
-            {1, ["Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side"]}, // Grass
-            {2, ["Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt"]},                          // Dirt
-            {3, ["Stone", "Stone", "Stone", "Stone", "Stone", "Stone"]}                     // Stone
+            {0, new("Null", "Null", "Null", "Null", "Null", "Null")},                          // Air
+            {1, new("Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side")}, // Grass
+            {2, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},                          // Dirt
+            {3, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")}                     // Stone
         };
 
         // Create Graphics and Shader
@@ -79,7 +79,7 @@ static class Program
             chunkLength,
             worldLengthInChunks,
             camNearPlane,
-            blockFacesById,
+            renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)

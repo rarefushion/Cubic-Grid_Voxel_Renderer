@@ -7,6 +7,7 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 
 public class Shader
 {
+    public Dictionary<int, BlockRenderData> renderDataByBlock;
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
     public BitArray occludedChunks;
@@ -158,7 +159,7 @@ public class Shader
     /// <param name="chunkLength">The width/height/depth of a single chunk in blocks.</param>
     /// <param name="worldLengthInChunks">The total width of the world measured in chunks.</param>
     /// <param name="cameraNearPlane">The distance to the camera's near clipping plane.</param>
-    /// <param name="facesImageNameByBlockID">A map linking block IDs to their specific face texture names.</param>
+    /// <param name="renderDataByBlock">A dictionary linking block IDs to their specific <c>BlockRenderData</c>.</param>
     /// <param name="imageByName">A dictionary containing the raw pixel data for each texture.</param>
     /// <param name="errorAction">An optional delegate for handling error messages.</param>
     /// <param name="logAction">An optional delegate for handling shader compilation logs.</param>
@@ -169,13 +170,14 @@ public class Shader
         int chunkLength,
         int worldLengthInChunks,
         float cameraNearPlane,
-        Dictionary<int, string[]> facesImageNameByBlockID,
+        Dictionary<int, BlockRenderData> renderDataByBlock,
         Dictionary<string, Image> imageByName,
         Action<string>? errorAction = null,
         Action<string>? logAction = null
     )
     {
         GL = openGL;
+        this.renderDataByBlock = renderDataByBlock;
         OutputError = errorAction;
         OutputLog = logAction;
         //Create Shader
@@ -275,20 +277,20 @@ public class Shader
         this.tbo = tbo;
         GL.Uniform1(GL.GetUniformLocation(shaderProgram, "textureArray"), 0);
         List<float> textureIDs = [];
-        foreach (KeyValuePair<int, string[]> blockFaces in facesImageNameByBlockID)
+        foreach (KeyValuePair<int, BlockRenderData> blockData in renderDataByBlock)
         {
-            if (blockFaces.Key == 0)
+            if (blockData.Key == 0)
             {
                 for (int i = 0; i < 6; i++)
                     textureIDs.Add(3f);
                 continue;
             }
-            textureIDs.Add(textureIndexByName[blockFaces.Value[0]]);
-            textureIDs.Add(textureIndexByName[blockFaces.Value[1]]);
-            textureIDs.Add(textureIndexByName[blockFaces.Value[2]]);
-            textureIDs.Add(textureIndexByName[blockFaces.Value[3]]);
-            textureIDs.Add(textureIndexByName[blockFaces.Value[4]]);
-            textureIDs.Add(textureIndexByName[blockFaces.Value[5]]);
+            textureIDs.Add(textureIndexByName[blockData.Value.faceBack]);
+            textureIDs.Add(textureIndexByName[blockData.Value.faceFront]);
+            textureIDs.Add(textureIndexByName[blockData.Value.faceTop]);
+            textureIDs.Add(textureIndexByName[blockData.Value.faceBottom]);
+            textureIDs.Add(textureIndexByName[blockData.Value.faceLeft]);
+            textureIDs.Add(textureIndexByName[blockData.Value.faceRight]);
         }
         uint TextureIDShaderStorageBuffer = GL.GenBuffer();
         GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, TextureIDShaderStorageBuffer);
