@@ -8,7 +8,7 @@ using Silk.NET.Windowing;
 
 static class Program
 {
-    const int worldLengthInChunks = 48;
+    const int worldLengthInChunks = 56;
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
@@ -53,7 +53,7 @@ static class Program
 
         // Create Blocks
         // Faces are named by the Assets/Textures file name.
-        Dictionary<int, BlockRenderData> renderDataByBlock = new()
+        Dictionary<ushort, BlockRenderData> renderDataByBlock = new()
         {
             {0, new("Null", "Null", "Null", "Null", "Null", "Null")},                          // Air
             {1, new("Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side")}, // Grass
@@ -172,7 +172,7 @@ static class Program
                 (int)MathF.Floor(localChunkPos.Z / chunkLength)
             );
             int worldIndex = ((chunkCoord.Z * worldLengthInChunks + chunkCoord.Y) * worldLengthInChunks + chunkCoord.X) * chunkVolume;
-            int[] blocks = new int[chunkVolume];
+            ushort[] blocks = new ushort[chunkVolume];
             for (int blockZ = 0; blockZ < chunkLength; blockZ++)
             for (int blockX = 0; blockX < chunkLength; blockX++)
             for (int blockY = 0; blockY < chunkLength; blockY++)
@@ -190,8 +190,8 @@ static class Program
                     -49 => 0,   // Air slice
                     _ => 3,     // Stone default
                 };
-                blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? 1 : blocks[i];
-                blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? 1 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)1 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)1 : blocks[i];
             }
             shader.RenderChunk((Vector3)chunkPos, worldIndex, blocks);
         }

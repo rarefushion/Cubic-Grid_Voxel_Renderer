@@ -7,7 +7,7 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 
 public class Shader
 {
-    public Dictionary<int, BlockRenderData> renderDataByBlock;
+    public Dictionary<ushort, BlockRenderData> renderDataByBlock;
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
     public BitArray occludedChunks;
@@ -44,14 +44,14 @@ public class Shader
     /// <param name="position">The world-space position of the chunk.</param>
     /// <param name="worldIndex">The unique index used to offset data within the shader storage buffer.</param>
     /// <param name="blocks">The collection of block IDs comprising the chunk.</param>
-    public unsafe void RenderChunk(Vector3 position, int worldIndex, Span<int> blocks)
+    public unsafe void RenderChunk(Vector3 position, int worldIndex, Span<ushort> blocks)
     {
         GL.UseProgram(shaderProgram);
         GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
-        fixed (int* buf = blocks)
+        fixed (ushort* buf = blocks)
         {
-            nuint size = (nuint)(blocks.Length * sizeof(int));
-            GL.BufferSubData(BufferTargetARB.ShaderStorageBuffer, worldIndex * sizeof(int), size, buf);
+            nuint size = (nuint)(blocks.Length * sizeof(ushort));
+            GL.BufferSubData(BufferTargetARB.ShaderStorageBuffer, worldIndex * sizeof(ushort), size, buf);
         }
 
         uint vao = GL.GenVertexArray();
@@ -170,7 +170,7 @@ public class Shader
         int chunkLength,
         int worldLengthInChunks,
         float cameraNearPlane,
-        Dictionary<int, BlockRenderData> renderDataByBlock,
+        Dictionary<ushort, BlockRenderData> renderDataByBlock,
         Dictionary<string, Image> imageByName,
         Action<string>? errorAction = null,
         Action<string>? logAction = null
@@ -227,14 +227,14 @@ public class Shader
         chunkTotalCount = worldLengthInChunks * worldLengthInChunks * worldLengthInChunks;
         int worldTotalSize =  chunkTotalCount * chunkVolume;
         int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
-        if ((long)worldTotalSize * (long)sizeof(int) > maxSSBOSize)
+        if ((long)worldTotalSize * (long)sizeof(ushort) > maxSSBOSize)
             throw new Exception($"World size is too big for shader storage buffer. Max size: {maxSSBOSize / 1024 / 1024} MB");
         chunkShaderStorageBuffer = GL.GenBuffer();
         GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
         int[] defaults = new int[worldTotalSize];
         fixed (int* buf = defaults)
         {
-            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(worldTotalSize * sizeof(int)), buf, BufferUsageARB.DynamicDraw);
+            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(worldTotalSize * sizeof(ushort)), buf, BufferUsageARB.DynamicDraw);
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 0, chunkShaderStorageBuffer);
 
@@ -277,7 +277,7 @@ public class Shader
         this.tbo = tbo;
         GL.Uniform1(GL.GetUniformLocation(shaderProgram, "textureArray"), 0);
         List<float> textureIDs = [];
-        foreach (KeyValuePair<int, BlockRenderData> blockData in renderDataByBlock)
+        foreach (KeyValuePair<ushort, BlockRenderData> blockData in renderDataByBlock)
         {
             if (blockData.Key == 0)
             {
@@ -300,7 +300,7 @@ public class Shader
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 1, TextureIDShaderStorageBuffer);
 
-        OutputLogs(GL.GetProgramInfoLog(shaderProgram));
+        OutputLogs("Shader", GL.GetProgramInfoLog(shaderProgram));
         // Occlusion Compute
         string occlusionComputeCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "OcclusionCompute.glsl"));
         uint computeShader = GL.CreateShader(GLEnum.ComputeShader);
@@ -333,8 +333,8 @@ public class Shader
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 2, chunksOccludedShaderStorageBuffer);
 
-        OutputLogs(GL.GetShaderInfoLog(computeShader));
-        OutputLogs(GL.GetProgramInfoLog(occlusionProgram));
+        OutputLogs("Occlusion compute", GL.GetShaderInfoLog(computeShader));
+        OutputLogs("Occlusion compute", GL.GetProgramInfoLog(occlusionProgram));
         OutputErrors("Voxel Mat Instantiator");
     }
 
@@ -345,10 +345,10 @@ public class Shader
             OutputError?.Invoke($"OpenGL Error @{location}: {err}");
     }
 
-    private void OutputLogs(string location)
+    private void OutputLogs(string location, string log)
     {
-        GLEnum err;
-        while ((err = GL.GetError()) != GLEnum.NoError)
-            OutputLog?.Invoke($"OpenGL Log @{location}: {err}");
+        if (string.IsNullOrEmpty(log))
+            return;
+        OutputLog?.Invoke($"OpenGL Log @{location}: {log}");
     }
 }

@@ -1,9 +1,14 @@
 #version 430 core
+#if defined(GL_NV_gpu_shader5)
+    #extension GL_NV_gpu_shader5 : enable
+#elif defined(GL_EXT_shader_explicit_arithmetic_types_int16)
+    #extension GL_EXT_shader_explicit_arithmetic_types_int16 : enable
+#endif
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 // This compute writes to chunksOccluded, one int is a 'word' or 32 bits each representing a chunk. 1 render 0 don't render
-layout(binding=2) buffer OccludedChunkBuffer { flat uint chunksOccluded[]; };
-layout(binding=0) buffer ChunkBuffer { flat int chunks[]; };
+layout(binding=2) buffer OccludedChunkBuffer { flat int chunksOccluded[]; };
+layout(binding=0) buffer ChunkBuffer { flat uint16_t chunks[]; };
 
 // Assign on program creation
 uniform float nearClip;
@@ -64,13 +69,13 @@ void main()
         vec3 blockLocalPos = rayPosWorldWrap - chunkCoord * chunkLength;
         uint localBlockIndex = uint((blockLocalPos.z * chunkLength + blockLocalPos.y) * chunkLength + blockLocalPos.x);
         uint blockIndex = chunkIndex + localBlockIndex;
-        if (chunks[blockIndex] > 0)
+        if (chunks[blockIndex] > 0us)
         {
             // 32 size of uint
             // 1u is uint 1 in decimal (0x31)1
             // << bitwise left-shift moves the left most bit(1) by so many spaces
             // atomicOr is thread safe bitwise OR
-            atomicOr(chunksOccluded[chunkOccludedIndex / 32], (1u << (chunkOccludedIndex % 32)));
+            atomicOr(chunksOccluded[chunkOccludedIndex / 32], (1 << (chunkOccludedIndex % 32)));
             break;
         }
         vec3 mask = step(sideDist.xyz, sideDist.yzx) * step(sideDist.xyz, sideDist.zxy);

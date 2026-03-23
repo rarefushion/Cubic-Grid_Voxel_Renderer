@@ -1,6 +1,11 @@
 #version 430 core
+#if defined(GL_NV_gpu_shader5)
+    #extension GL_NV_gpu_shader5 : enable
+#elif defined(GL_EXT_shader_explicit_arithmetic_types_int16)
+    #extension GL_EXT_shader_explicit_arithmetic_types_int16 : enable
+#endif
 
-layout(binding=0) buffer ChunkBuffer { flat int chunks[]; };
+layout(binding=0) buffer ChunkBuffer { flat uint16_t chunks[]; };
 layout (points) in;
 layout (triangle_strip, max_vertices = 24) out;
 
@@ -43,8 +48,8 @@ void main()
         ( vec2(0.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 0.0), vec2(1.0, 1.0) );
 
     int blockIndex = chunkIndex + vBlockIndex[0];
-    int block = chunks[blockIndex];
-    if (block == 0)
+    uint16_t block = chunks[blockIndex];
+    if (block == 0us)
         return;
     vec3 blockPos =
         chunkPos +
@@ -57,7 +62,7 @@ void main()
     blockPos = floor(blockPos);
 
     // Create Faces
-    gBlock = int(block + 0.1);
+    gBlock = int(block);
     for (int f = 0; f < 6; f++)
     {
         vec3 checkingBlockPos = mod(mod(blockPos + directions[f], worldLength) + worldLength, worldLength);
@@ -66,7 +71,7 @@ void main()
         vec3 checkingBlockLocalPos = floor(mod(checkingBlockPos, chunkLength));
         int checkingLocalBlockIndex = int((checkingBlockLocalPos.z * chunkLength + checkingBlockLocalPos.y) * chunkLength + checkingBlockLocalPos.x);
         int checkingBlockIndex = checkingChunkIndex + checkingLocalBlockIndex;
-        if (chunks[checkingBlockIndex] != 0)
+        if (chunks[checkingBlockIndex] != 0us)
             continue;
 
         for (int vert = 0; vert < 4; vert++)
