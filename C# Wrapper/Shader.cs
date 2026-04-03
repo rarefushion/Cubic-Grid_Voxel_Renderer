@@ -352,7 +352,7 @@ public class Shader
             GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(chunksOccludedSize * sizeof(int)), buf, BufferUsageARB.DynamicDraw);
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 2, chunksOccludedShaderStorageBuffer);
-        loadedChunks = new(chunkTotalCount, false);
+        loadedChunks = new(chunksOccluded);
 
         OutputLogs("Occlusion compute", GL.GetShaderInfoLog(computeShader));
         OutputLogs("Occlusion compute", GL.GetProgramInfoLog(occlusionProgram));
