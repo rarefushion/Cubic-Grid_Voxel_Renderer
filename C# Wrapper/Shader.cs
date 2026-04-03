@@ -11,6 +11,7 @@ public class Shader
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
     public BitArray occludedChunks;
+    public BitArray loadedChunks;
     public Vector3 worldOrigin;
     public Vector3 worldLengthDimensions;
     public Vector3 MinBounds => worldOrigin;
@@ -38,11 +39,11 @@ public class Shader
 
     private readonly GL GL;
     private record ChunkRenderingData(Vector3 Position, int WorldIndex, uint Vao);
-    private readonly List<ChunkRenderingData> chunks = [];
+    private readonly Dictionary<int, ChunkRenderingData> chunkByWorldIndex = [];
 
     /// <summary>Registers a chunk for rendering, updates its block data in the GPU buffer, and initializes its Vertex Array Object.</summary>
     /// <param name="position">The world-space position of the chunk.</param>
-    /// <param name="worldIndex">The unique index used to offset data within the shader storage buffer.</param>
+    /// <param name="worldIndex">The block index the chunk starts at.</param>
     /// <param name="blocks">The collection of block IDs comprising the chunk.</param>
     public unsafe void RenderChunk(Vector3 position, int worldIndex, Span<ushort> blocks)
     {
@@ -62,22 +63,41 @@ public class Shader
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
         GL.BindVertexArray(0);
 
+        if (!IsPositionInBounds(chunk.Position))
+            updateRequired = true;
+        chunkByWorldIndex.Add(worldIndex, chunk);
+        loadedChunks[worldIndex / chunkVolume] = true;
+        OutputErrors("Voxel Mat Creating Chunk");
+    }
+
+    /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
+    /// <param name="worldIndex">The block index the chunk starts at.</param>
+    public void DeactivateChunk(int worldIndex)
+    {
+        chunkByWorldIndex.Remove(worldIndex);
+        loadedChunks[worldIndex / chunkVolume] = false;
+    }
+
+    /// <summary>Checks if the given position is within the rendering boundaries.</summary>
+    /// <param name="pos">The global position to verify.</param>
+    /// <returns>True if <paramref name="pos"> is within the world bounds, else False.</returns>
+    public bool IsPositionInBounds(Vector3 pos)
+    {
         Vector3 maxCurrent = worldOrigin + worldLengthDimensions;
         if
         (
-            chunk.Position.X > maxCurrent.X || chunk.Position.X < worldOrigin.X ||
-            chunk.Position.Y > maxCurrent.Y || chunk.Position.Y < worldOrigin.Y ||
-            chunk.Position.Z > maxCurrent.Z || chunk.Position.Z < worldOrigin.Z
+            pos.X > maxCurrent.X || pos.X < worldOrigin.X ||
+            pos.Y > maxCurrent.Y || pos.Y < worldOrigin.Y ||
+            pos.Z > maxCurrent.Z || pos.Z < worldOrigin.Z
         )
-            updateRequired = true;
-        chunks.Add(chunk);
-        OutputErrors("Voxel Mat Creating Chunk");
+            return false;
+        return true;
     }
 
     private void UpdateBounds()
     {
         Vector3 min = Vector3.Zero, max = Vector3.Zero;
-        foreach (ChunkRenderingData chunk in chunks)
+        foreach (ChunkRenderingData chunk in chunkByWorldIndex.Values)
         {
             min.X = (chunk.Position.X < min.X) ? chunk.Position.X : min.X;
             min.Y = (chunk.Position.Y < min.Y) ? chunk.Position.Y : min.Y;
@@ -121,7 +141,7 @@ public class Shader
         {
             GL.GetBufferSubData(BufferTargetARB.ShaderStorageBuffer, 0, (nuint)(chunksOccludedSize * sizeof(int)), d);
         }
-        occludedChunks = new(chunksOccluded);
+        occludedChunks = new BitArray(chunksOccluded).And(loadedChunks);
         OutputErrors("Voxel Mat Occlusion");
     }
 
@@ -141,7 +161,7 @@ public class Shader
 
         GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
-        foreach (ChunkRenderingData chunk in chunks)
+        foreach (ChunkRenderingData chunk in chunkByWorldIndex.Values)
         {
             if (!occludedChunks[chunk.WorldIndex / chunkVolume])
                 continue;
@@ -332,6 +352,7 @@ public class Shader
             GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(chunksOccludedSize * sizeof(int)), buf, BufferUsageARB.DynamicDraw);
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 2, chunksOccludedShaderStorageBuffer);
+        loadedChunks = new(chunkTotalCount, false);
 
         OutputLogs("Occlusion compute", GL.GetShaderInfoLog(computeShader));
         OutputLogs("Occlusion compute", GL.GetProgramInfoLog(occlusionProgram));
