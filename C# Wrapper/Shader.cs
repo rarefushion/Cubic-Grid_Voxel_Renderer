@@ -102,8 +102,9 @@ public class Shader
 
     private void UpdateBounds()
     {
-        Vector3 min = Vector3.Zero, max = Vector3.Zero;
-        foreach (ChunkRenderingData chunk in chunkByWorldIndex.Values)
+        ChunkRenderingData[] chunks = [.. chunkByWorldIndex.Values];
+        Vector3 min = chunks[0].Position, max = chunks[0].Position;
+        foreach (ChunkRenderingData chunk in chunks)
         {
             min.X = (chunk.Position.X < min.X) ? chunk.Position.X : min.X;
             min.Y = (chunk.Position.Y < min.Y) ? chunk.Position.Y : min.Y;
