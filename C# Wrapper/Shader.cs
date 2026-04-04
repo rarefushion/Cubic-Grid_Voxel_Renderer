@@ -63,7 +63,13 @@ public class Shader
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
         GL.BindVertexArray(0);
 
-        if (!IsPositionInBounds(chunk.Position))
+        Vector3 maxCurrent = worldOrigin + worldLengthDimensions;
+        if
+        (
+            chunk.Position.X >= maxCurrent.X || chunk.Position.X < worldOrigin.X ||
+            chunk.Position.Y >= maxCurrent.Y || chunk.Position.Y < worldOrigin.Y ||
+            chunk.Position.Z >= maxCurrent.Z || chunk.Position.Z < worldOrigin.Z
+        )
             updateRequired = true;
         chunkByWorldIndex.Add(worldIndex, chunk);
         loadedChunks[worldIndex / chunkVolume] = true;
@@ -107,7 +113,7 @@ public class Shader
             max.Z = (chunk.Position.Z > max.Z) ? chunk.Position.Z : max.Z;
         }
         Vector3 nextOrigin = min, nextMax = nextOrigin + worldLengthDimensions;
-        if (max.X > nextMax.X || max.Y > nextMax.Y || max.Z > nextMax.Z)
+        if (max.X >= nextMax.X || max.Y >= nextMax.Y || max.Z >= nextMax.Z)
             throw new Exception("Chunks are out of world bounds.");
         worldOrigin = nextOrigin;
         updateRequired = false;
