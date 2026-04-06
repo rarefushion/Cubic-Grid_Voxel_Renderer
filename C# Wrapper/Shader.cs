@@ -7,6 +7,9 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 
 public class Shader
 {
+    public record ChunkRenderingData(Vector3 Position, int WorldIndex, uint Vao);
+
+    public readonly Dictionary<int, ChunkRenderingData> chunkByWorldIndex = [];
     public Dictionary<ushort, BlockRenderData> renderDataByBlock;
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
@@ -38,15 +41,22 @@ public class Shader
     private bool updateRequired;
 
     private readonly GL GL;
-    private record ChunkRenderingData(Vector3 Position, int WorldIndex, uint Vao);
-    private readonly Dictionary<int, ChunkRenderingData> chunkByWorldIndex = [];
 
-    /// <summary>Registers a chunk for rendering, updates its block data in the GPU buffer, and initializes its Vertex Array Object.</summary>
+    /// <summary>Registers or replaces a chunk for rendering, updates its block data in the GPU buffer, and initializes its Vertex Array Object.</summary>
     /// <param name="position">The world-space position of the chunk.</param>
     /// <param name="worldIndex">The block index the chunk starts at.</param>
     /// <param name="blocks">The collection of block IDs comprising the chunk.</param>
     public unsafe void RenderChunk(Vector3 position, int worldIndex, Span<ushort> blocks)
     {
+        if (chunkByWorldIndex.ContainsKey(worldIndex))
+        {
+            string log =
+                $"Log @Voxel Mat Creating Chunk: Chunk at worldIndex'{worldIndex}' already existed. " +
+                $"Old position'{chunkByWorldIndex[worldIndex].Position}' New position'{position}'. " +
+                $"Deactivating old chunk before rendering the new one.";
+            OutputLog?.Invoke(log);
+            DeactivateChunk(worldIndex);
+        }
         GL.UseProgram(shaderProgram);
         GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
         fixed (ushort* buf = blocks)
@@ -71,7 +81,7 @@ public class Shader
             chunk.Position.Z >= maxCurrent.Z || chunk.Position.Z < worldOrigin.Z
         )
             updateRequired = true;
-        chunkByWorldIndex.Add(worldIndex, chunk);
+        chunkByWorldIndex[worldIndex] = chunk;
         loadedChunks[worldIndex / chunkVolume] = true;
         OutputErrors("Voxel Mat Creating Chunk");
     }
@@ -80,7 +90,11 @@ public class Shader
     /// <param name="worldIndex">The block index the chunk starts at.</param>
     public void DeactivateChunk(int worldIndex)
     {
-        chunkByWorldIndex.Remove(worldIndex);
+        if (chunkByWorldIndex.TryGetValue(worldIndex, out ChunkRenderingData? chunk))
+        {
+            GL.DeleteVertexArray(chunk!.Vao);
+            chunkByWorldIndex.Remove(worldIndex);
+        }
         loadedChunks[worldIndex / chunkVolume] = false;
     }
 
