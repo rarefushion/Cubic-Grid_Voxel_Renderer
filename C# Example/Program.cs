@@ -172,6 +172,7 @@ static class Program
                 (int)MathF.Floor(localChunkPos.Z / chunkLength)
             );
             int worldIndex = ((chunkCoord.Z * worldLengthInChunks + chunkCoord.Y) * worldLengthInChunks + chunkCoord.X) * chunkVolume;
+            bool allSameBlock = false;
             ushort[] blocks = new ushort[chunkVolume];
             for (int blockZ = 0; blockZ < chunkLength; blockZ++)
             for (int blockX = 0; blockX < chunkLength; blockX++)
@@ -192,8 +193,13 @@ static class Program
                 };
                 blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)1 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)1 : blocks[i];
+                if (blocks[i] != blocks[0])
+                    allSameBlock = false;
             }
-            shader.RenderChunk((Vector3)chunkPos, worldIndex, blocks);
+            if (allSameBlock)
+                shader.FillChunk((Vector3)chunkPos, worldIndex, blocks[0]);
+            else
+                shader.RenderChunk((Vector3)chunkPos, worldIndex, blocks);
         }
     }
 }

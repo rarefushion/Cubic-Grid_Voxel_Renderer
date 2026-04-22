@@ -64,26 +64,38 @@ public class Shader
             nuint size = (nuint)(blocks.Length * sizeof(ushort));
             GL.BufferSubData(BufferTargetARB.ShaderStorageBuffer, worldIndex * sizeof(ushort), size, buf);
         }
+        NewChunk(position, worldIndex);
+    }
 
-        uint vao = GL.GenVertexArray();
-        GL.BindVertexArray(vao);
-        ChunkRenderingData chunk = new(position, worldIndex, vao);
-        GL.VertexAttribPointer(0, 1, VertexAttribPointerType.Byte, false, sizeof(byte), (void*)0);
-        GL.EnableVertexAttribArray(0);
-        GL.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
-        GL.BindVertexArray(0);
-
-        Vector3 maxCurrent = worldOrigin + worldLengthDimensions;
-        if
+    /// <summary>Registers or replaces a chunk for rendering, updates its block data in the GPU buffer, and initializes its Vertex Array Object.</summary>
+    /// <param name="position">The world-space position of the chunk.</param>
+    /// <param name="worldIndex">The block index the chunk starts at.</param>
+    /// <param name="block">The single block that fills the entire chunk.</param>
+    public unsafe void FillChunk(Vector3 position, int worldIndex, ushort block)
+    {
+        if (chunkByWorldIndex.TryGetValue(worldIndex, out ChunkRenderingData? oldChunk))
+        {
+            string log =
+                $"Log @Voxel Mat Creating Chunk: Chunk at worldIndex'{worldIndex}' already existed. " +
+                $"Old position'{chunkByWorldIndex[worldIndex].Position}' New position'{position}'. " +
+                $"Deactivating old chunk before rendering the new one.";
+            OutputLog?.Invoke(log);
+            GL.DeleteVertexArray(oldChunk!.Vao);
+        }
+        GL.UseProgram(shaderProgram);
+        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
+        nuint size = (nuint)(chunkVolume * sizeof(ushort));
+        GL.ClearBufferSubData
         (
-            chunk.Position.X >= maxCurrent.X || chunk.Position.X < worldOrigin.X ||
-            chunk.Position.Y >= maxCurrent.Y || chunk.Position.Y < worldOrigin.Y ||
-            chunk.Position.Z >= maxCurrent.Z || chunk.Position.Z < worldOrigin.Z
-        )
-            updateRequired = true;
-        chunkByWorldIndex[worldIndex] = chunk;
-        loadedChunks[worldIndex / chunkVolume] = true;
-        OutputErrors("Voxel Mat Creating Chunk");
+            BufferTargetARB.ShaderStorageBuffer,
+            GLEnum.R16ui,
+            worldIndex * sizeof(ushort),
+            size,
+            GLEnum.RedInteger,
+            GLEnum.UnsignedShort,
+            &block
+        );
+        NewChunk(position, worldIndex);
     }
 
     /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
@@ -111,6 +123,30 @@ public class Shader
             &air
         );
         OutputErrors("Voxel Mat DeactivateChunk");
+    }
+
+    private unsafe void NewChunk(Vector3 position, int worldIndex)
+    {
+
+        uint vao = GL.GenVertexArray();
+        GL.BindVertexArray(vao);
+        ChunkRenderingData chunk = new(position, worldIndex, vao);
+        GL.VertexAttribPointer(0, 1, VertexAttribPointerType.Byte, false, sizeof(byte), (void*)0);
+        GL.EnableVertexAttribArray(0);
+        GL.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
+        GL.BindVertexArray(0);
+
+        Vector3 maxCurrent = worldOrigin + worldLengthDimensions;
+        if
+        (
+            chunk.Position.X >= maxCurrent.X || chunk.Position.X < worldOrigin.X ||
+            chunk.Position.Y >= maxCurrent.Y || chunk.Position.Y < worldOrigin.Y ||
+            chunk.Position.Z >= maxCurrent.Z || chunk.Position.Z < worldOrigin.Z
+        )
+            updateRequired = true;
+        chunkByWorldIndex[worldIndex] = chunk;
+        loadedChunks[worldIndex / chunkVolume] = true;
+        OutputErrors("Voxel Mat Creating Chunk");
     }
 
     /// <summary>Checks if the given position is within the rendering boundaries.</summary>
