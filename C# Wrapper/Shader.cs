@@ -48,14 +48,14 @@ public class Shader
     /// <param name="blocks">The collection of block IDs comprising the chunk.</param>
     public unsafe void RenderChunk(Vector3 position, int worldIndex, Span<ushort> blocks)
     {
-        if (chunkByWorldIndex.ContainsKey(worldIndex))
+        if (chunkByWorldIndex.TryGetValue(worldIndex, out ChunkRenderingData? oldChunk))
         {
             string log =
                 $"Log @Voxel Mat Creating Chunk: Chunk at worldIndex'{worldIndex}' already existed. " +
                 $"Old position'{chunkByWorldIndex[worldIndex].Position}' New position'{position}'. " +
                 $"Deactivating old chunk before rendering the new one.";
             OutputLog?.Invoke(log);
-            DeactivateChunk(worldIndex);
+            GL.DeleteVertexArray(oldChunk!.Vao);
         }
         GL.UseProgram(shaderProgram);
         GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
@@ -88,7 +88,7 @@ public class Shader
 
     /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
     /// <param name="worldIndex">The block index the chunk starts at.</param>
-    public void DeactivateChunk(int worldIndex)
+    public unsafe void DeactivateChunk(int worldIndex)
     {
         if (chunkByWorldIndex.TryGetValue(worldIndex, out ChunkRenderingData? chunk))
         {
@@ -96,6 +96,21 @@ public class Shader
             chunkByWorldIndex.Remove(worldIndex);
         }
         loadedChunks[worldIndex / chunkVolume] = false;
+        GL.UseProgram(shaderProgram);
+        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
+        int air = 0;
+        nuint size = (nuint)(chunkVolume * sizeof(ushort));
+        GL.ClearBufferSubData
+        (
+            BufferTargetARB.ShaderStorageBuffer,
+            GLEnum.R16ui,
+            worldIndex * sizeof(ushort),
+            size,
+            GLEnum.RedInteger,
+            GLEnum.UnsignedShort,
+            &air
+        );
+        OutputErrors("Voxel Mat DeactivateChunk");
     }
 
     /// <summary>Checks if the given position is within the rendering boundaries.</summary>
