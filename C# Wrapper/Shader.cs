@@ -240,7 +240,7 @@ public class Shader
             GL.Uniform3(chunkPosLocation, chunk.Position);
             GL.Uniform1(chunkIndexLocation, chunk.WorldIndex);
             GL.BindVertexArray(chunk.Vao);
-            GL.DrawArrays(PrimitiveType.Points, 0, (uint)chunkVolume);
+            GL.DrawArraysInstanced(GLEnum.Triangles, 0, 36, (uint)chunkVolume);
         }
         OutputErrors("Voxel Mat Render");
     }
@@ -277,17 +277,12 @@ public class Shader
         uint vertexShader = GL.CreateShader(ShaderType.VertexShader);
         GL.ShaderSource(vertexShader, vertexShaderCode);
         GL.CompileShader(vertexShader);
-        string geomatryShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "Geomatry.glsl"));
-        uint geomatryShader = GL.CreateShader(ShaderType.GeometryShader);
-        GL.ShaderSource(geomatryShader, geomatryShaderCode);
-        GL.CompileShader(geomatryShader);
         string fragmentShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "Fragment.glsl"));
         uint fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
         GL.ShaderSource(fragmentShader, fragmentShaderCode);
         GL.CompileShader(fragmentShader);
         shaderProgram = GL.CreateProgram();
         GL.AttachShader(shaderProgram, vertexShader);
-        GL.AttachShader(shaderProgram, geomatryShader);
         GL.AttachShader(shaderProgram, fragmentShader);
         GL.LinkProgram(shaderProgram);
         // Verify
@@ -296,10 +291,8 @@ public class Shader
             OutputError?.Invoke("Program link failed: " + GL.GetProgramInfoLog(shaderProgram));
         // Clean up
         GL.DetachShader(shaderProgram, vertexShader);
-        GL.DetachShader(shaderProgram, geomatryShader);
         GL.DetachShader(shaderProgram, fragmentShader);
         GL.DeleteShader(vertexShader);
-        GL.DeleteShader(geomatryShader);
         GL.DeleteShader(fragmentShader);
         GL.UseProgram(shaderProgram);
         // Assing shader variables
@@ -391,6 +384,15 @@ public class Shader
             GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(textureIDs.Count * sizeof(float)), buf, BufferUsageARB.DynamicDraw);
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 1, TextureIDShaderStorageBuffer);
+        // Shapes
+        Vertex[] block = CubeMesh.CreateShapeTris();
+        uint shapesBuffer = GL.GenBuffer();
+        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, shapesBuffer);
+        fixed (void* buf = block)
+        {
+            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(block.Length * sizeof(Vertex)), buf, BufferUsageARB.DynamicDraw);
+        }
+        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 3, shapesBuffer);
 
         OutputLogs("Shader", GL.GetProgramInfoLog(shaderProgram));
         // Occlusion Compute
