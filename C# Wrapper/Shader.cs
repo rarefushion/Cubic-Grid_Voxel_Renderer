@@ -13,32 +13,18 @@ public class Shader
     public Dictionary<ushort, BlockRenderData> renderDataByBlock;
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
-    public BitArray occludedChunks;
     public BitArray loadedChunks;
-    public Vector3 worldOrigin;
-    public Vector3 worldLengthDimensions;
-    public Vector3 MinBounds => worldOrigin;
-    public Vector3 MaxBounds => worldOrigin + worldLengthDimensions;
     public uint shaderProgram;
-    public uint occlusionProgram;
 
     private readonly int chunkVolume;
     private readonly int worldChunkLength;
     private readonly int chunkTotalCount;
     private readonly int projectionLocation;
     private readonly int viewLocation;
-    private readonly int projectionInvereseLocation;
-    private readonly int viewInvereseLocation;
     private readonly int chunkPosLocation;
     private readonly int chunkIndexLocation;
-    private readonly int maxOcclusionRayStepsLocation;
-    private readonly int negOcclusionBoundsLocation;
-    private readonly int posOcclusionBoundsLocation;
-    private readonly int screenSizeOcclusionLocation;
     private readonly uint tbo;
     private readonly uint chunkShaderStorageBuffer;
-    private readonly uint chunksOccludedShaderStorageBuffer;
-    private bool updateRequired;
 
     private readonly GL GL;
 
@@ -135,97 +121,16 @@ public class Shader
         GL.EnableVertexAttribArray(0);
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
         GL.BindVertexArray(0);
-
-        Vector3 maxCurrent = worldOrigin + worldLengthDimensions;
-        if
-        (
-            chunk.Position.X >= maxCurrent.X || chunk.Position.X < worldOrigin.X ||
-            chunk.Position.Y >= maxCurrent.Y || chunk.Position.Y < worldOrigin.Y ||
-            chunk.Position.Z >= maxCurrent.Z || chunk.Position.Z < worldOrigin.Z
-        )
-            updateRequired = true;
         chunkByWorldIndex[worldIndex] = chunk;
         loadedChunks[worldIndex / chunkVolume] = true;
         OutputErrors("Voxel Mat Creating Chunk");
     }
 
-    /// <summary>Checks if the given position is within the rendering boundaries.</summary>
-    /// <param name="pos">The global position to verify.</param>
-    /// <returns>True if <paramref name="pos"> is within the world bounds, else False.</returns>
-    public bool IsPositionInBounds(Vector3 pos)
-    {
-        Vector3 maxCurrent = worldOrigin + worldLengthDimensions;
-        if
-        (
-            pos.X > maxCurrent.X || pos.X < worldOrigin.X ||
-            pos.Y > maxCurrent.Y || pos.Y < worldOrigin.Y ||
-            pos.Z > maxCurrent.Z || pos.Z < worldOrigin.Z
-        )
-            return false;
-        return true;
-    }
-
-    private void UpdateBounds()
-    {
-        ChunkRenderingData[] chunks = [.. chunkByWorldIndex.Values];
-        Vector3 min = chunks[0].Position, max = chunks[0].Position;
-        foreach (ChunkRenderingData chunk in chunks)
-        {
-            min.X = (chunk.Position.X < min.X) ? chunk.Position.X : min.X;
-            min.Y = (chunk.Position.Y < min.Y) ? chunk.Position.Y : min.Y;
-            min.Z = (chunk.Position.Z < min.Z) ? chunk.Position.Z : min.Z;
-            max.X = (chunk.Position.X > max.X) ? chunk.Position.X : max.X;
-            max.Y = (chunk.Position.Y > max.Y) ? chunk.Position.Y : max.Y;
-            max.Z = (chunk.Position.Z > max.Z) ? chunk.Position.Z : max.Z;
-        }
-        Vector3 nextOrigin = min, nextMax = nextOrigin + worldLengthDimensions;
-        if (max.X >= nextMax.X || max.Y >= nextMax.Y || max.Z >= nextMax.Z)
-            throw new Exception("Chunks are out of world bounds.");
-        worldOrigin = nextOrigin;
-        updateRequired = false;
-    }
-
-    private unsafe void ComputeChunksOccluded(Matrix4x4 projectionMatrix, Matrix4x4 viewMatrix, Vector2 screenSize)
-    {
-        GL.UseProgram(occlusionProgram);
-        Matrix4x4.Invert(projectionMatrix, out Matrix4x4 projectionInverse);
-        Matrix4x4.Invert(viewMatrix, out Matrix4x4 viewInverse);
-        GL.UniformMatrix4(projectionInvereseLocation, 1, false, (float*)&projectionInverse);
-        GL.UniformMatrix4(viewInvereseLocation, 1, false, (float*)&viewInverse);
-        int maxDistance = worldChunkLength * 16 * 3; // TMP world diagnal length, change to account for cam pos, rot and fov
-        GL.Uniform1(maxOcclusionRayStepsLocation, maxDistance);
-        GL.Uniform3(negOcclusionBoundsLocation, worldOrigin);
-        GL.Uniform3(posOcclusionBoundsLocation, worldOrigin + worldLengthDimensions);
-        // Create Occlusion Buffer
-        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 0, chunkShaderStorageBuffer);
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunksOccludedShaderStorageBuffer);
-        int val = 0;
-        GL.ClearBufferData(GLEnum.ShaderStorageBuffer, GLEnum.R32i, GLEnum.RedInteger, GLEnum.Int, &val);
-        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 2, chunksOccludedShaderStorageBuffer);
-
-        GL.Uniform2(screenSizeOcclusionLocation, screenSize);
-        // 16 is the layout(local_size) in the shader
-        GL.DispatchCompute((uint)Math.Ceiling(screenSize.X / 16), (uint)Math.Ceiling(screenSize.Y / 16), 1);
-        GL.MemoryBarrier((uint)GLEnum.ShaderStorageBarrierBit);
-        int chunksOccludedSize = (int)MathF.Ceiling((float)chunkTotalCount / 32);
-        int[] chunksOccluded = new int[chunksOccludedSize];
-        fixed (void* d = chunksOccluded)
-        {
-            GL.GetBufferSubData(BufferTargetARB.ShaderStorageBuffer, 0, (nuint)(chunksOccludedSize * sizeof(int)), d);
-        }
-        occludedChunks = new BitArray(chunksOccluded).And(loadedChunks);
-        OutputErrors("Voxel Mat Occlusion");
-    }
-
     /// <summary>Executes the rendering pass for all registered chunks that pass the occlusion test.</summary>
     /// <param name="projectionMatrix">The current perspective projection matrix.</param>
     /// <param name="viewMatrix">The current camera view matrix.</param>
-    /// <param name="screenSize">The dimensions of the viewport for occlusion calculations.</param>
-    public unsafe void Render(Matrix4x4 projectionMatrix, Matrix4x4 viewMatrix, Vector2 screenSize)
+    public unsafe void Render(Matrix4x4 projectionMatrix, Matrix4x4 viewMatrix)
     {
-        if (updateRequired)
-            UpdateBounds();
-        ComputeChunksOccluded(projectionMatrix, viewMatrix, screenSize);
         // Render
         GL.UseProgram(shaderProgram);
         GL.UniformMatrix4(projectionLocation, 1, false, (float*)&projectionMatrix);
@@ -235,7 +140,7 @@ public class Shader
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
         foreach (ChunkRenderingData chunk in chunkByWorldIndex.Values)
         {
-            if (!occludedChunks[chunk.WorldIndex / chunkVolume])
+            if (!loadedChunks[chunk.WorldIndex / chunkVolume])
                 continue;
             GL.Uniform3(chunkPosLocation, chunk.Position);
             GL.Uniform1(chunkIndexLocation, chunk.WorldIndex);
@@ -301,7 +206,6 @@ public class Shader
         chunkVolume = chunkLength * chunkLength * chunkLength;
         this.worldChunkLength = worldLengthInChunks;
         int worldLength = worldLengthInChunks * chunkLength;
-        this.worldLengthDimensions = new (worldLength, worldLength, worldLength);
         chunkIndexLocation = GL.GetUniformLocation(shaderProgram, "chunkIndex");
         GL.Uniform1(GL.GetUniformLocation(shaderProgram, "chunkLength"), chunkLength);
         GL.Uniform1(GL.GetUniformLocation(shaderProgram, "chunkVolume"), chunkVolume);
@@ -394,42 +298,9 @@ public class Shader
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 3, shapesBuffer);
 
+        loadedChunks = new(chunkTotalCount);
+
         OutputLogs("Shader", GL.GetProgramInfoLog(shaderProgram));
-        // Occlusion Compute
-        string occlusionComputeCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "OcclusionCompute.glsl"));
-        uint computeShader = GL.CreateShader(GLEnum.ComputeShader);
-        GL.ShaderSource(computeShader, occlusionComputeCode);
-        GL.CompileShader(computeShader);
-        occlusionProgram = GL.CreateProgram(); // This or CreateShader do we need to keep?
-        GL.AttachShader(occlusionProgram, computeShader);
-        GL.LinkProgram(occlusionProgram);
-        GL.UseProgram(occlusionProgram);
-
-        GL.Uniform1(GL.GetUniformLocation(occlusionProgram, "nearClip"), cameraNearPlane);
-        screenSizeOcclusionLocation = GL.GetUniformLocation(occlusionProgram, "screenSize");
-        GL.Uniform1(GL.GetUniformLocation(occlusionProgram, "chunkLength"), chunkLength);
-        GL.Uniform1(GL.GetUniformLocation(occlusionProgram, "chunkVolume"), chunkVolume);
-        GL.Uniform1(GL.GetUniformLocation(occlusionProgram, "worldLength"), worldLength);
-        GL.Uniform1(GL.GetUniformLocation(occlusionProgram, "worldChunkLength"), worldLengthInChunks);
-        projectionInvereseLocation = GL.GetUniformLocation(occlusionProgram, "projectionInverse");
-        viewInvereseLocation = GL.GetUniformLocation(occlusionProgram, "viewInverse");
-        maxOcclusionRayStepsLocation = GL.GetUniformLocation(occlusionProgram, "maxSteps");
-        negOcclusionBoundsLocation = GL.GetUniformLocation(occlusionProgram, "negBounds");
-        posOcclusionBoundsLocation = GL.GetUniformLocation(occlusionProgram, "posBounds");
-        chunksOccludedShaderStorageBuffer = GL.GenBuffer();
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunksOccludedShaderStorageBuffer);
-        int chunksOccludedSize = (int)MathF.Ceiling((float)chunkTotalCount / 32);
-        int[] chunksOccluded = new int[chunksOccludedSize];
-        occludedChunks = new BitArray(chunksOccluded);
-        fixed (int* buf = chunksOccluded)
-        {
-            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(chunksOccludedSize * sizeof(int)), buf, BufferUsageARB.DynamicDraw);
-        }
-        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 2, chunksOccludedShaderStorageBuffer);
-        loadedChunks = new(chunksOccluded);
-
-        OutputLogs("Occlusion compute", GL.GetShaderInfoLog(computeShader));
-        OutputLogs("Occlusion compute", GL.GetProgramInfoLog(occlusionProgram));
         OutputErrors("Voxel Mat Instantiator");
     }
 

@@ -8,7 +8,7 @@ using Silk.NET.Windowing;
 
 static class Program
 {
-    const int worldLengthInChunks = 56;
+    const int worldLengthInChunks = 13;
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
@@ -94,8 +94,7 @@ static class Program
         window.Render += dt => shader.Render
         (
             CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
-            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0),
-            (Vector2)window.Size
+            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
     }
 
