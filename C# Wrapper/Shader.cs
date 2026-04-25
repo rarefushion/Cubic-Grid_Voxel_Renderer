@@ -29,22 +29,17 @@ public class Shader
     private readonly Dictionary<int, RegionBuffer> regionByID = [];
     private int currentRegionID = 0;
 
-    /// <summary>Registers or replaces a chunk for rendering, updates its block data in the GPU buffer, and initializes its Vertex Array Object.</summary>
+    /// <summary>Registers or replaces a full chunk for rendering, culls blocks, and assignes them to a VBO to render.</summary>
     /// <param name="position">The world-space position of the chunk.</param>
-    /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
-    public unsafe void RenderChunk(Vector3 position, Span<ushort> blocks)
-    {
-        GL.UseProgram(shaderProgram);
-        BlockInstance[] instances = new BlockInstance[blocks.Length];
-        for (int z = 0; z < chunkLength; z++)
-        for (int y = 0; y < chunkLength; y++)
-        for (int x = 0; x < chunkLength; x++)
-        {
-            int index = (z * chunkLength + y) * chunkLength + x;
-            instances[index] = new(new(x, y, z), blocks[index]);
-        }
-        NewChunk(position, instances);
-    }
+    /// <param name="blocks">The collection of block IDs comprising the entire chunk. With z > y > x index ordering.</param>
+    public void RenderChunk(Vector3 position, Span<ushort> blocks) =>
+        NewChunk(position, BlockCulling.CullSingleChunk(blocks, chunkLength));
+
+    /// <summary>Registers or replaces a chunk for rendering and assignes them to a VBO to render.</summary>
+    /// <param name="position">The world-space position of the chunk.</param>
+    /// <param name="blocks">The collection of block instances to render.</param>
+    public void RenderChunk(Vector3 position, BlockInstance[] blocks) =>
+        NewChunk(position, blocks);
 
     /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
     public unsafe void DeactivateChunk(Vector3 position)
@@ -63,6 +58,7 @@ public class Shader
 
     private unsafe void NewChunk(Vector3 position, BlockInstance[] blocks)
     {
+        GL.UseProgram(shaderProgram);
         nuint size = (nuint)(blocks.Length * sizeof(BlockInstance));
         if (!regionByID[currentRegionID].CanFit(size))
             NewRegion();
@@ -70,7 +66,7 @@ public class Shader
         GL.BindVertexArray(regionByID[currentRegionID].Vao);
         int index = regionByID[currentRegionID].BytePointer;
         ChunkRenderingData chunk = new(position, blocks, index / sizeof(BlockInstance), currentRegionID);
-        fixed (void* buf = blocks)
+        fixed (void* buf = blocks.ToArray())
         {
             GL.BufferSubData(BufferTargetARB.ArrayBuffer, index, size, buf);
         }
@@ -119,10 +115,10 @@ public class Shader
         {
             GL.BindVertexArray(region.Vao);
             GL.BindBuffer(BufferTargetARB.ArrayBuffer, region.Vbo);
-            foreach (Vector3 chunk in region.Chunks)
+            foreach (ChunkRenderingData chunk in region.Chunks.Select(p => chunkByPos[p]))
             {
-                GL.Uniform3(chunkPosLocation, chunk);
-                GL.DrawArraysInstancedBaseInstance(PrimitiveType.Triangles, 0, 36, (uint)chunkVolume, (uint)chunkByPos[chunk].RegionInstanceIndex);
+                GL.Uniform3(chunkPosLocation, chunk.Position);
+                GL.DrawArraysInstancedBaseInstance(PrimitiveType.Triangles, 0, 36, (uint)chunk.Blocks.Length, (uint)chunk.RegionInstanceIndex);
             }
         }
         OutputErrors("Voxel Mat Render");

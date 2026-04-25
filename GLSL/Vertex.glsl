@@ -31,8 +31,5 @@ void main()
     gUV = vert.uv;
     gFace = vert.face;
 
-    if (gBlock == 0)
-        gl_Position = vec4(0);
-    else
-        gl_Position = projection * view * vec4(vert.position + chunkPos + aPos, 1.0);
+    gl_Position = projection * view * vec4(vert.position + chunkPos + aPos, 1.0);
 }
