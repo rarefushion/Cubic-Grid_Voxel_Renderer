@@ -47,7 +47,7 @@ public class Shader
         if (!chunkByPos.Remove(position, out ChunkRenderingData? chunk))
             return;
         regionByID[chunk.RegionID].Chunks.Remove(position);
-        if (regionByID[chunk.RegionID].Chunks.Count == 0)
+        if (regionByID[chunk.RegionID].Chunks.Count == 0 && chunk.RegionID != currentRegionID)
         {
             GL.DeleteVertexArray(regionByID[chunk.RegionID].Vao);
             GL.DeleteBuffer(regionByID[chunk.RegionID].Vbo);
