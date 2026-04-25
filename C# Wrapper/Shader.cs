@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Silk.NET.GLFW;
 using Silk.NET.OpenGL;
 
@@ -7,123 +8,100 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 
 public class Shader
 {
-    public record ChunkRenderingData(Vector3 Position, int WorldIndex, uint Vao);
+    public record ChunkRenderingData(Vector3 Position, BlockInstance[] Blocks, int RegionInstanceIndex, int RegionID);
 
-    public readonly Dictionary<int, ChunkRenderingData> chunkByWorldIndex = [];
+    public readonly Dictionary<Vector3, ChunkRenderingData> chunkByPos = [];
     public Dictionary<ushort, BlockRenderData> renderDataByBlock;
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
-    public BitArray loadedChunks;
     public uint shaderProgram;
 
+    private readonly int chunkLength;
     private readonly int chunkVolume;
-    private readonly int worldChunkLength;
-    private readonly int chunkTotalCount;
     private readonly int projectionLocation;
     private readonly int viewLocation;
     private readonly int chunkPosLocation;
-    private readonly int chunkIndexLocation;
     private readonly uint tbo;
-    private readonly uint chunkShaderStorageBuffer;
+    private readonly uint bufferSize;
+    private readonly nint memBlockInstanceBlockOffset;
 
     private readonly GL GL;
+    private readonly Dictionary<int, RegionBuffer> regionByID = [];
+    private int currentRegionID = 0;
 
     /// <summary>Registers or replaces a chunk for rendering, updates its block data in the GPU buffer, and initializes its Vertex Array Object.</summary>
     /// <param name="position">The world-space position of the chunk.</param>
-    /// <param name="worldIndex">The block index the chunk starts at.</param>
-    /// <param name="blocks">The collection of block IDs comprising the chunk.</param>
-    public unsafe void RenderChunk(Vector3 position, int worldIndex, Span<ushort> blocks)
+    /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
+    public unsafe void RenderChunk(Vector3 position, Span<ushort> blocks)
     {
-        if (chunkByWorldIndex.TryGetValue(worldIndex, out ChunkRenderingData? oldChunk))
-        {
-            string log =
-                $"Log @Voxel Mat Creating Chunk: Chunk at worldIndex'{worldIndex}' already existed. " +
-                $"Old position'{chunkByWorldIndex[worldIndex].Position}' New position'{position}'. " +
-                $"Deactivating old chunk before rendering the new one.";
-            OutputLog?.Invoke(log);
-            GL.DeleteVertexArray(oldChunk!.Vao);
-        }
         GL.UseProgram(shaderProgram);
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
-        fixed (ushort* buf = blocks)
+        BlockInstance[] instances = new BlockInstance[blocks.Length];
+        for (int z = 0; z < chunkLength; z++)
+        for (int y = 0; y < chunkLength; y++)
+        for (int x = 0; x < chunkLength; x++)
         {
-            nuint size = (nuint)(blocks.Length * sizeof(ushort));
-            GL.BufferSubData(BufferTargetARB.ShaderStorageBuffer, worldIndex * sizeof(ushort), size, buf);
+            int index = (z * chunkLength + y) * chunkLength + x;
+            instances[index] = new(new(x, y, z), blocks[index]);
         }
-        NewChunk(position, worldIndex);
-    }
-
-    /// <summary>Registers or replaces a chunk for rendering, updates its block data in the GPU buffer, and initializes its Vertex Array Object.</summary>
-    /// <param name="position">The world-space position of the chunk.</param>
-    /// <param name="worldIndex">The block index the chunk starts at.</param>
-    /// <param name="block">The single block that fills the entire chunk.</param>
-    public unsafe void FillChunk(Vector3 position, int worldIndex, ushort block)
-    {
-        if (chunkByWorldIndex.TryGetValue(worldIndex, out ChunkRenderingData? oldChunk))
-        {
-            string log =
-                $"Log @Voxel Mat Creating Chunk: Chunk at worldIndex'{worldIndex}' already existed. " +
-                $"Old position'{chunkByWorldIndex[worldIndex].Position}' New position'{position}'. " +
-                $"Deactivating old chunk before rendering the new one.";
-            OutputLog?.Invoke(log);
-            GL.DeleteVertexArray(oldChunk!.Vao);
-        }
-        GL.UseProgram(shaderProgram);
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
-        nuint size = (nuint)(chunkVolume * sizeof(ushort));
-        GL.ClearBufferSubData
-        (
-            BufferTargetARB.ShaderStorageBuffer,
-            GLEnum.R16ui,
-            worldIndex * sizeof(ushort),
-            size,
-            GLEnum.RedInteger,
-            GLEnum.UnsignedShort,
-            &block
-        );
-        NewChunk(position, worldIndex);
+        NewChunk(position, instances);
     }
 
     /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
-    /// <param name="worldIndex">The block index the chunk starts at.</param>
-    public unsafe void DeactivateChunk(int worldIndex)
+    public unsafe void DeactivateChunk(Vector3 position)
     {
-        if (chunkByWorldIndex.TryGetValue(worldIndex, out ChunkRenderingData? chunk))
+        if (!chunkByPos.Remove(position, out ChunkRenderingData? chunk))
+            return;
+        regionByID[chunk.RegionID].Chunks.Remove(position);
+        if (regionByID[chunk.RegionID].Chunks.Count == 0)
         {
-            GL.DeleteVertexArray(chunk!.Vao);
-            chunkByWorldIndex.Remove(worldIndex);
+            GL.DeleteVertexArray(regionByID[chunk.RegionID].Vao);
+            GL.DeleteBuffer(regionByID[chunk.RegionID].Vbo);
+            regionByID.Remove(chunk.RegionID);
         }
-        loadedChunks[worldIndex / chunkVolume] = false;
-        GL.UseProgram(shaderProgram);
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
-        int air = 0;
-        nuint size = (nuint)(chunkVolume * sizeof(ushort));
-        GL.ClearBufferSubData
-        (
-            BufferTargetARB.ShaderStorageBuffer,
-            GLEnum.R16ui,
-            worldIndex * sizeof(ushort),
-            size,
-            GLEnum.RedInteger,
-            GLEnum.UnsignedShort,
-            &air
-        );
         OutputErrors("Voxel Mat DeactivateChunk");
     }
 
-    private unsafe void NewChunk(Vector3 position, int worldIndex)
+    private unsafe void NewChunk(Vector3 position, BlockInstance[] blocks)
     {
-
-        uint vao = GL.GenVertexArray();
-        GL.BindVertexArray(vao);
-        ChunkRenderingData chunk = new(position, worldIndex, vao);
-        GL.VertexAttribPointer(0, 1, VertexAttribPointerType.Byte, false, sizeof(byte), (void*)0);
-        GL.EnableVertexAttribArray(0);
-        GL.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
-        GL.BindVertexArray(0);
-        chunkByWorldIndex[worldIndex] = chunk;
-        loadedChunks[worldIndex / chunkVolume] = true;
+        nuint size = (nuint)(blocks.Length * sizeof(BlockInstance));
+        if (!regionByID[currentRegionID].CanFit(size))
+            NewRegion();
+        GL.BindBuffer(BufferTargetARB.ArrayBuffer, regionByID[currentRegionID].Vbo);
+        GL.BindVertexArray(regionByID[currentRegionID].Vao);
+        int index = regionByID[currentRegionID].BytePointer;
+        ChunkRenderingData chunk = new(position, blocks, index / sizeof(BlockInstance), currentRegionID);
+        fixed (void* buf = blocks)
+        {
+            GL.BufferSubData(BufferTargetARB.ArrayBuffer, index, size, buf);
+        }
+        regionByID[currentRegionID].BytePointer += (int)size;
+        regionByID[currentRegionID].Chunks.Add(position);
+        chunkByPos[position] = chunk;
         OutputErrors("Voxel Mat Creating Chunk");
+    }
+
+    private unsafe void NewRegion()
+    {
+        uint vbo;
+        uint vao;
+        GL.GenBuffers(1, out vbo);
+        vao = GL.GenVertexArray();
+        regionByID.Add(++currentRegionID, new RegionBuffer(vbo, vao, bufferSize));
+        GL.BindBuffer(BufferTargetARB.ArrayBuffer, vbo);
+        GL.BindVertexArray(vao);
+        BlockInstance[] defaults = new BlockInstance[(int)Math.Ceiling((double)bufferSize / sizeof(BlockInstance))];
+        fixed (void* buf = defaults)
+        {
+            GL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(defaults.Length * sizeof(BlockInstance)), buf, BufferUsageARB.DynamicDraw);
+        }
+        GL.EnableVertexAttribArray(0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, (uint)sizeof(BlockInstance), (void*)0);
+        GL.VertexAttribDivisor(0, 1);
+        GL.EnableVertexAttribArray(1);
+        GL.VertexAttribIPointer(1, 1, GLEnum.Int, (uint)sizeof(BlockInstance), (void*)memBlockInstanceBlockOffset);
+        GL.VertexAttribDivisor(1, 1);
+        GL.BindVertexArray(0);
+        OutputErrors("Voxel Mat Creating Region");
     }
 
     /// <summary>Executes the rendering pass for all registered chunks that pass the occlusion test.</summary>
@@ -136,16 +114,16 @@ public class Shader
         GL.UniformMatrix4(projectionLocation, 1, false, (float*)&projectionMatrix);
         GL.UniformMatrix4(viewLocation, 1, false, (float*)&viewMatrix);
 
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
-        foreach (ChunkRenderingData chunk in chunkByWorldIndex.Values)
+        foreach (RegionBuffer region in regionByID.Values)
         {
-            if (!loadedChunks[chunk.WorldIndex / chunkVolume])
-                continue;
-            GL.Uniform3(chunkPosLocation, chunk.Position);
-            GL.Uniform1(chunkIndexLocation, chunk.WorldIndex);
-            GL.BindVertexArray(chunk.Vao);
-            GL.DrawArraysInstanced(GLEnum.Triangles, 0, 36, (uint)chunkVolume);
+            GL.BindVertexArray(region.Vao);
+            GL.BindBuffer(BufferTargetARB.ArrayBuffer, region.Vbo);
+            foreach (Vector3 chunk in region.Chunks)
+            {
+                GL.Uniform3(chunkPosLocation, chunk);
+                GL.DrawArraysInstancedBaseInstance(PrimitiveType.Triangles, 0, 36, (uint)chunkVolume, (uint)chunkByPos[chunk].RegionInstanceIndex);
+            }
         }
         OutputErrors("Voxel Mat Render");
     }
@@ -154,7 +132,7 @@ public class Shader
     /// <param name="openGL">The GL interface for executing commands.</param>
     /// <param name="GLSLScriptsPath">The directory path containing the .glsl shader files.</param>
     /// <param name="chunkLength">The width/height/depth of a single chunk in blocks.</param>
-    /// <param name="worldLengthInChunks">The total width of the world measured in chunks.</param>
+    /// <param name="vramBufferRegionSize">Vram batch size in bytes to reserve.</param>
     /// <param name="cameraNearPlane">The distance to the camera's near clipping plane.</param>
     /// <param name="renderDataByBlock">A dictionary linking block IDs to their specific <c>BlockRenderData</c>.</param>
     /// <param name="imageByName">A dictionary containing the raw pixel data for each texture.</param>
@@ -165,7 +143,7 @@ public class Shader
         GL openGL,
         string GLSLScriptsPath,
         int chunkLength,
-        int worldLengthInChunks,
+        int vramBufferRegionSize,
         float cameraNearPlane,
         Dictionary<ushort, BlockRenderData> renderDataByBlock,
         Dictionary<string, Image> imageByName,
@@ -203,29 +181,23 @@ public class Shader
         // Assing shader variables
         projectionLocation = GL.GetUniformLocation(shaderProgram, "projection");
         viewLocation = GL.GetUniformLocation(shaderProgram, "view");
+        this.chunkLength = chunkLength;
         chunkVolume = chunkLength * chunkLength * chunkLength;
-        this.worldChunkLength = worldLengthInChunks;
-        int worldLength = worldLengthInChunks * chunkLength;
-        chunkIndexLocation = GL.GetUniformLocation(shaderProgram, "chunkIndex");
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "chunkLength"), chunkLength);
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "chunkVolume"), chunkVolume);
         chunkPosLocation = GL.GetUniformLocation(shaderProgram, "chunkPos");
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "worldLength"), worldLength);
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "worldChunkLength"), worldLengthInChunks);
-        // Shader Storage Buffer Object for chunk blocks
-        chunkTotalCount = worldLengthInChunks * worldLengthInChunks * worldLengthInChunks;
-        int worldTotalSize =  chunkTotalCount * chunkVolume;
+        // Region Buffers
         int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
-        if ((long)worldTotalSize * (long)sizeof(ushort) > maxSSBOSize)
-            throw new Exception($"World size is too big for shader storage buffer. Max size: {maxSSBOSize / 1024 / 1024} MB");
-        chunkShaderStorageBuffer = GL.GenBuffer();
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, chunkShaderStorageBuffer);
-        int[] defaults = new int[worldTotalSize];
-        fixed (int* buf = defaults)
-        {
-            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(worldTotalSize * sizeof(ushort)), buf, BufferUsageARB.DynamicDraw);
-        }
-        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 0, chunkShaderStorageBuffer);
+        if (vramBufferRegionSize > maxSSBOSize)
+            throw new Exception($"vramBufferRegionSize size exceeds hardware's allowed size of {maxSSBOSize}");
+        int chunkVolumeSize = sizeof(BlockInstance) * chunkVolume;
+        if (vramBufferRegionSize < chunkVolumeSize)
+            throw new Exception($"vramBufferRegionSize size less than a single chunk. Min {chunkVolumeSize}");
+        int waste = vramBufferRegionSize % chunkVolumeSize;
+        if (waste > 0)
+            OutputLogs("Voxel Mat Instantiator", $"vramBufferRegionSize doesn't align with chunk size {chunkVolumeSize} and wastes {waste} bytes.");
+        bufferSize = (uint)vramBufferRegionSize;
+        memBlockInstanceBlockOffset = Marshal.OffsetOf<BlockInstance>("block");
+        currentRegionID = -1;
+        NewRegion();
 
         // Textures
         uint maxX = 0, maxY = 0;
@@ -298,8 +270,6 @@ public class Shader
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 3, shapesBuffer);
 
-        loadedChunks = new(chunkTotalCount);
-
         OutputLogs("Shader", GL.GetProgramInfoLog(shaderProgram));
         OutputErrors("Voxel Mat Instantiator");
     }
@@ -316,5 +286,17 @@ public class Shader
         if (string.IsNullOrEmpty(log))
             return;
         OutputLog?.Invoke($"OpenGL Log @{location}: {log}");
+    }
+
+
+    private class RegionBuffer(uint Vbo, uint Vao, uint BufferSize)
+    {
+        public readonly uint Vbo = Vbo;
+        public readonly uint Vao = Vao;
+        public int BytePointer = 0;
+        public readonly HashSet<Vector3> Chunks = [];
+
+        public bool CanFit(nuint size) =>
+            (nuint)BytePointer + size < BufferSize;
     }
 }

@@ -1,9 +1,4 @@
 #version 430 core
-#if defined(GL_NV_gpu_shader5)
-    #extension GL_NV_gpu_shader5 : enable
-#elif defined(GL_EXT_shader_explicit_arithmetic_types_int16)
-    #extension GL_EXT_shader_explicit_arithmetic_types_int16 : enable
-#endif
 
 struct BlockVertex
 {
@@ -15,40 +10,29 @@ struct BlockVertex
 };
 
 layout(binding=3) buffer BlockVertices { BlockVertex[] blockVertices; };
-layout(binding=0) buffer ChunkBuffer { flat uint16_t chunks[]; };
+
+layout(location=0) in vec3 aPos;
+layout(location=1) in int aBlock;
 
 out flat int gBlock;
 out vec2 gUV;
 out flat int gFace;
 
-uniform int chunkIndex;
 uniform vec3 chunkPos;
-uniform int chunkLength;
 
 uniform mat4 projection;
 uniform mat4 view;
 
 void main()
 {
-    uint16_t block = chunks[chunkIndex + gl_InstanceID];
     BlockVertex vert = blockVertices[gl_VertexID];
 
-    gBlock = int(block);
+    gBlock = aBlock;
     gUV = vert.uv;
     gFace = vert.face;
 
-    if (block == 0us)
+    if (gBlock == 0)
         gl_Position = vec4(0);
     else
-    {
-        vec3 blockPos =
-            chunkPos +
-            vec3
-            (
-                mod(gl_InstanceID, chunkLength),
-                mod(gl_InstanceID / chunkLength, chunkLength),
-                (gl_InstanceID / (chunkLength * chunkLength))
-            );
-        gl_Position = projection * view * vec4(vert.position + blockPos, 1.0);
-    }
+        gl_Position = projection * view * vec4(vert.position + chunkPos + aPos, 1.0);
 }
