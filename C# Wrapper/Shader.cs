@@ -109,6 +109,7 @@ public class Shader
         GL.UseProgram(shaderProgram);
         GL.UniformMatrix4(projectionLocation, 1, false, (float*)&projectionMatrix);
         GL.UniformMatrix4(viewLocation, 1, false, (float*)&viewMatrix);
+        MatrixPlanes.Plane[] planes = MatrixPlanes.ViewFrustum(viewMatrix, projectionMatrix);
 
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
         foreach (RegionBuffer region in regionByID.Values)
@@ -117,6 +118,8 @@ public class Shader
             GL.BindBuffer(BufferTargetARB.ArrayBuffer, region.Vbo);
             foreach (ChunkRenderingData chunk in region.Chunks.Select(p => chunkByPos[p]))
             {
+                if (!MatrixPlanes.IsBoxInFrustum(planes, chunk.Position, chunk.Position + Vector3.One * chunkLength))
+                    continue;
                 GL.Uniform3(chunkPosLocation, chunk.Position);
                 GL.DrawArraysInstancedBaseInstance(PrimitiveType.Triangles, 0, 36, (uint)chunk.Blocks.Length, (uint)chunk.RegionInstanceIndex);
             }
