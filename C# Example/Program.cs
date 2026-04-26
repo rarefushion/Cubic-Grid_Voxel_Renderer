@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Collections.Concurrent;
+using System.Numerics;
 using GalensUnified.CubicGrid.Renderer.NET;
 using Microsoft.DotNet.PlatformAbstractions;
 using Silk.NET.Input;
@@ -8,7 +9,7 @@ using Silk.NET.Windowing;
 
 static class Program
 {
-    const int worldLengthInChunks = 56;
+    const int worldLengthInChunks = 65;
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
@@ -77,7 +78,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
-            worldLengthInChunks,
+            chunkLength * chunkLength * chunkLength * 16 * 32, // ChunkVolume * BlockInstance memory size(16 bytes) * 32 chunks, 32 is adjustable.
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -94,8 +95,7 @@ static class Program
         window.Render += dt => shader.Render
         (
             CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
-            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0),
-            (Vector2)window.Size
+            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
     }
 
@@ -151,29 +151,18 @@ static class Program
     /// <summary>Loops through all chunks and their blocks to create the world.</summary>
     static void CreateWorld(GalensUnified.CubicGrid.Renderer.NET.Shader shader, Vector3D<int> worldPosition, int chunkLength, int worldLength)
     {
-        int chunkVolume = chunkLength * chunkLength * chunkLength;
+        List<Vector3D<int>> toCreate = [];
         for (int chunkZ = worldPosition.Z; chunkZ < worldPosition.Z + worldLength; chunkZ += chunkLength)
         for (int chunkX = worldPosition.X; chunkX < worldPosition.X + worldLength; chunkX += chunkLength)
         for (int chunkY = worldPosition.Y; chunkY < worldPosition.Y + worldLength; chunkY += chunkLength)
+            toCreate.Add(new(chunkX, chunkY, chunkZ));
+
+        ConcurrentDictionary<Vector3, ushort[]> chunkByPos = [];
+        Parallel.ForEach(toCreate, (chunkPos) =>
         {
-            Vector3D<int> chunkPos = new(chunkX, chunkY, chunkZ);
-            // Position relative to worldPosition
-            Vector3D<int> localChunkPos = new
-            (
-                ((chunkPos.X % worldLength) + worldLength) % worldLength,
-                ((chunkPos.Y % worldLength) + worldLength) % worldLength,
-                ((chunkPos.Z % worldLength) + worldLength) % worldLength
-            );
-            // The number of chunks in any direction form worldPosition
-            Vector3D<int> chunkCoord = new
-            (
-                (int)MathF.Floor(localChunkPos.X / chunkLength),
-                (int)MathF.Floor(localChunkPos.Y / chunkLength),
-                (int)MathF.Floor(localChunkPos.Z / chunkLength)
-            );
-            int worldIndex = ((chunkCoord.Z * worldLengthInChunks + chunkCoord.Y) * worldLengthInChunks + chunkCoord.X) * chunkVolume;
-            bool allSameBlock = false;
+            int chunkVolume = chunkLength * chunkLength * chunkLength;
             ushort[] blocks = new ushort[chunkVolume];
+            bool allSame = true;
             for (int blockZ = 0; blockZ < chunkLength; blockZ++)
             for (int blockX = 0; blockX < chunkLength; blockX++)
             for (int blockY = 0; blockY < chunkLength; blockY++)
@@ -194,12 +183,27 @@ static class Program
                 blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)1 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)1 : blocks[i];
                 if (blocks[i] != blocks[0])
-                    allSameBlock = false;
+                    allSame = false;
             }
-            if (allSameBlock)
-                shader.FillChunk((Vector3)chunkPos, worldIndex, blocks[0]);
-            else
-                shader.RenderChunk((Vector3)chunkPos, worldIndex, blocks);
-        }
+            if (allSame && blocks[0] == 0)
+                return;
+            chunkByPos.TryAdd((Vector3)chunkPos, blocks);
+        });
+        int chunkVolume = chunkLength * chunkLength * chunkLength;
+        ConcurrentDictionary<Vector3, BlockInstance[]> chunksToRender = [];
+        Parallel.ForEach(chunkByPos, (kvp) =>
+        {
+            ushort[] negZChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[0] * chunkLength), out ushort[]? negZBlocks) ? negZBlocks : [];
+            ushort[] posZChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[1] * chunkLength), out ushort[]? posZBlocks) ? posZBlocks : [];
+            ushort[] posYChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[2] * chunkLength), out ushort[]? posYBlocks) ? posYBlocks : [];
+            ushort[] negYChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[3] * chunkLength), out ushort[]? negYBlocks) ? negYBlocks : [];
+            ushort[] negXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[4] * chunkLength), out ushort[]? negXBlocks) ? negXBlocks : [];
+            ushort[] posXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[5] * chunkLength), out ushort[]? posXBlocks) ? posXBlocks : [];
+            BlockInstance[] toRender = BlockCulling.CullChunk(kvp.Value, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+            if (toRender.Length > 0)
+                chunksToRender.TryAdd(kvp.Key, toRender);
+        });
+        foreach ((Vector3 chunkPos, BlockInstance[] blocks) in chunksToRender)
+            shader.RenderChunk(chunkPos, blocks);
     }
 }
