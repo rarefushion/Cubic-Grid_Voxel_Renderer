@@ -24,6 +24,8 @@ public class Shader
     private readonly uint tbo;
     private readonly uint bufferSize;
     private readonly nint memBlockInstanceBlockOffset;
+    private readonly nint memBlockInstanceLights1Offset;
+    private readonly nint memBlockInstanceLights2Offset;
 
     private readonly GL GL;
     private readonly Dictionary<int, RegionBuffer> regionByID = [];
@@ -59,13 +61,13 @@ public class Shader
     private unsafe void NewChunk(Vector3 position, BlockInstance[] blocks)
     {
         GL.UseProgram(shaderProgram);
-        nuint size = (nuint)(blocks.Length * sizeof(BlockInstance));
+        nuint size = (nuint)(blocks.Length * BlockInstance.MemorySize);
         if (!regionByID[currentRegionID].CanFit(size))
             NewRegion();
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, regionByID[currentRegionID].Vbo);
         GL.BindVertexArray(regionByID[currentRegionID].Vao);
         int index = regionByID[currentRegionID].BytePointer;
-        ChunkRenderingData chunk = new(position, blocks, index / sizeof(BlockInstance), currentRegionID);
+        ChunkRenderingData chunk = new(position, blocks, index / BlockInstance.MemorySize, currentRegionID);
         fixed (void* buf = blocks.ToArray())
         {
             GL.BufferSubData(BufferTargetARB.ArrayBuffer, index, size, buf);
@@ -85,17 +87,23 @@ public class Shader
         regionByID.Add(++currentRegionID, new RegionBuffer(vbo, vao, bufferSize));
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, vbo);
         GL.BindVertexArray(vao);
-        BlockInstance[] defaults = new BlockInstance[(int)Math.Ceiling((double)bufferSize / sizeof(BlockInstance))];
+        BlockInstance[] defaults = new BlockInstance[(int)Math.Ceiling((double)bufferSize / BlockInstance.MemorySize)];
         fixed (void* buf = defaults)
         {
-            GL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(defaults.Length * sizeof(BlockInstance)), buf, BufferUsageARB.DynamicDraw);
+            GL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(defaults.Length * BlockInstance.MemorySize), buf, BufferUsageARB.DynamicDraw);
         }
         GL.EnableVertexAttribArray(0);
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, (uint)sizeof(BlockInstance), (void*)0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, BlockInstance.MemorySize, (void*)0);
         GL.VertexAttribDivisor(0, 1);
         GL.EnableVertexAttribArray(1);
-        GL.VertexAttribIPointer(1, 1, GLEnum.Int, (uint)sizeof(BlockInstance), (void*)memBlockInstanceBlockOffset);
+        GL.VertexAttribIPointer(1, 1, GLEnum.Int, BlockInstance.MemorySize, (void*)memBlockInstanceBlockOffset);
         GL.VertexAttribDivisor(1, 1);
+        GL.EnableVertexAttribArray(2);
+        GL.VertexAttribPointer(2, 3, GLEnum.Float, false, BlockInstance.MemorySize, (void*)memBlockInstanceLights1Offset);
+        GL.VertexAttribDivisor(2, 1);
+        GL.EnableVertexAttribArray(3);
+        GL.VertexAttribPointer(3, 3, GLEnum.Float, false, BlockInstance.MemorySize, (void*)memBlockInstanceLights2Offset);
+        GL.VertexAttribDivisor(3, 1);
         GL.BindVertexArray(0);
         OutputErrors("Voxel Mat Creating Region");
     }
@@ -187,14 +195,16 @@ public class Shader
         int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
         if (vramBufferRegionSize > maxSSBOSize)
             throw new Exception($"vramBufferRegionSize size exceeds hardware's allowed size of {maxSSBOSize}");
-        int chunkVolumeSize = sizeof(BlockInstance) * chunkVolume;
+        int chunkVolumeSize = BlockInstance.MemorySize * chunkVolume;
         if (vramBufferRegionSize < chunkVolumeSize)
             throw new Exception($"vramBufferRegionSize size less than a single chunk. Min {chunkVolumeSize}");
         int waste = vramBufferRegionSize % chunkVolumeSize;
         if (waste > 0)
             OutputLogs("Voxel Mat Instantiator", $"vramBufferRegionSize doesn't align with chunk size {chunkVolumeSize} and wastes {waste} bytes.");
         bufferSize = (uint)vramBufferRegionSize;
-        memBlockInstanceBlockOffset = Marshal.OffsetOf<BlockInstance>("block");
+        memBlockInstanceBlockOffset = Marshal.OffsetOf<BlockInstance>(nameof(BlockInstance.block));
+        memBlockInstanceLights1Offset = Marshal.OffsetOf<BlockInstance>(nameof(BlockInstance.faceLights1));
+        memBlockInstanceLights2Offset = Marshal.OffsetOf<BlockInstance>(nameof(BlockInstance.faceLights2));
         currentRegionID = -1;
         NewRegion();
 

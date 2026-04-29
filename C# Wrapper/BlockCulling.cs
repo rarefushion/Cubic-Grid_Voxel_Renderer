@@ -45,7 +45,7 @@ public static class BlockCulling
         ((pos.Z % chunkLength) + chunkLength) % chunkLength
     );
 
-    /// <summary>Culls any blocks that isn't touching air. Chunk borders are assumed air.</summary>
+    /// <summary>Culls any blocks that isn't touching air. Chunk borders are assumed air. face lights default to 1.</summary>
     /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
     public static BlockInstance[] CullSingleChunk(Span<ushort> blocks, int chunkLength)
     {
@@ -60,7 +60,7 @@ public static class BlockCulling
             for (int d = 0; d < 6; d++)
                 if (IsAir(pos + directions[d], blocks, chunkLength))
                 {
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)]));
+                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], [1,1,1,1,1,1]));
                     break;
                 }
         }
@@ -111,7 +111,7 @@ public static class BlockCulling
                 }
                 if (chunkChecking.Length != blocks.Length || IsAir(blockChecking, chunkChecking, chunkLength))
                 {
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)]));
+                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], [1,1,1,1,1,1]));
                     break;
                 }
             }

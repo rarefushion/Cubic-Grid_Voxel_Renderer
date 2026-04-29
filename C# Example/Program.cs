@@ -10,6 +10,7 @@ using Silk.NET.Windowing;
 static class Program
 {
     const int worldLengthInChunks = 65;
+    const float shadowIntensity = 0.3f; // light level of shadows 0-1
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
@@ -78,7 +79,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
-            chunkLength * chunkLength * chunkLength * 16 * 32, // ChunkVolume * BlockInstance memory size(16 bytes) * 32 chunks, 32 is adjustable.
+            chunkLength * chunkLength * chunkLength * BlockInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -180,6 +181,7 @@ static class Program
                     -49 => 0,   // Air slice
                     _ => 3,     // Stone default
                 };
+                blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 > 80) ? (ushort)0 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)1 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)1 : blocks[i];
                 if (blocks[i] != blocks[0])
@@ -200,6 +202,23 @@ static class Program
             ushort[] negXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[4] * chunkLength), out ushort[]? negXBlocks) ? negXBlocks : [];
             ushort[] posXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[5] * chunkLength), out ushort[]? posXBlocks) ? posXBlocks : [];
             BlockInstance[] toRender = BlockCulling.CullChunk(kvp.Value, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+            // Fake Shading. Assumes how the world was made to make these shadows.
+            float [] shaded = [shadowIntensity,shadowIntensity,shadowIntensity,shadowIntensity,shadowIntensity,shadowIntensity];
+            float [] lit = [1,1,1,shadowIntensity,1,1];
+            for (int i = 0; i < toRender.Length; i++)
+            {
+                BlockInstance block = toRender[i];
+                Vector3 blockPos = block.position + kvp.Key;
+                if (blockPos.Y < -2)
+                    block = new(block.position, block.block, shaded);
+                else if (blockPos.Y <= 0 && blockPos.Z != 0 && Math.Abs(blockPos.X) % 10 > 5)
+                    block = new(block.position, block.block, shaded);
+                else if (blockPos.Y <= 0 && blockPos.X != 0 && Math.Abs(blockPos.Z) % 14 > 7)
+                    block = new(block.position, block.block, shaded);
+                else
+                    block = new(block.position, block.block, lit);
+                toRender[i] = block;
+            }
             if (toRender.Length > 0)
                 chunksToRender.TryAdd(kvp.Key, toRender);
         });
