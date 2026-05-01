@@ -1,4 +1,5 @@
 using System.Numerics;
+using GalensUnified.CubicGrid.Core;
 
 namespace GalensUnified.CubicGrid.Renderer.NET;
 
@@ -47,9 +48,9 @@ public static class BlockCulling
 
     /// <summary>Culls any blocks that isn't touching air. Chunk borders are assumed air. face lights default to 1.</summary>
     /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
-    public static BlockInstance[] CullSingleChunk(Span<ushort> blocks, int chunkLength)
+    public static FaceInstance[] CullSingleChunk(Span<ushort> blocks, int chunkLength)
     {
-        List<BlockInstance> instances = [];
+        List<FaceInstance> instances = [];
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
@@ -59,10 +60,7 @@ public static class BlockCulling
                 continue;
             for (int d = 0; d < 6; d++)
                 if (IsAir(pos + directions[d], blocks, chunkLength))
-                {
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], [1,1,1,1,1,1]));
-                    break;
-                }
+                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], 1, d));
         }
         return [.. instances];
     }
@@ -70,7 +68,7 @@ public static class BlockCulling
     /// <summary>Culls any blocks that isn't touching air.</summary>
     /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
     /// <remarks>Any neighbor chunks that are not the chunk volume size will be assumed air.</remarks>
-    public static BlockInstance[] CullChunk
+    public static FaceInstance[] CullChunk
     (
         Span<ushort> blocks,
         int chunkLength,
@@ -82,7 +80,7 @@ public static class BlockCulling
         Span<ushort> posXChunk
     )
     {
-        List<BlockInstance> instances = [];
+        List<FaceInstance> instances = [];
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
@@ -110,10 +108,7 @@ public static class BlockCulling
                     };
                 }
                 if (chunkChecking.Length != blocks.Length || IsAir(blockChecking, chunkChecking, chunkLength))
-                {
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], [1,1,1,1,1,1]));
-                    break;
-                }
+                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], 1, d));
             }
         }
         return [.. instances];

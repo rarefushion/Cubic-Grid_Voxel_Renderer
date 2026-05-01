@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Numerics;
+using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Renderer.NET;
 using Microsoft.DotNet.PlatformAbstractions;
 using Silk.NET.Input;
@@ -79,7 +80,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
-            chunkLength * chunkLength * chunkLength * BlockInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
+            chunkLength * chunkLength * chunkLength * FaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -192,7 +193,7 @@ static class Program
             chunkByPos.TryAdd((Vector3)chunkPos, blocks);
         });
         int chunkVolume = chunkLength * chunkLength * chunkLength;
-        ConcurrentDictionary<Vector3, BlockInstance[]> chunksToRender = [];
+        ConcurrentDictionary<Vector3, FaceInstance[]> chunksToRender = [];
         Parallel.ForEach(chunkByPos, (kvp) =>
         {
             ushort[] negZChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[0] * chunkLength), out ushort[]? negZBlocks) ? negZBlocks : [];
@@ -201,28 +202,26 @@ static class Program
             ushort[] negYChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[3] * chunkLength), out ushort[]? negYBlocks) ? negYBlocks : [];
             ushort[] negXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[4] * chunkLength), out ushort[]? negXBlocks) ? negXBlocks : [];
             ushort[] posXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[5] * chunkLength), out ushort[]? posXBlocks) ? posXBlocks : [];
-            BlockInstance[] toRender = BlockCulling.CullChunk(kvp.Value, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+            FaceInstance[] toRender = BlockCulling.CullChunk(kvp.Value, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
             // Fake Shading. Assumes how the world was made to make these shadows.
-            float [] shaded = [shadowIntensity,shadowIntensity,shadowIntensity,shadowIntensity,shadowIntensity,shadowIntensity];
-            float [] lit = [1,1,1,shadowIntensity,1,1];
             for (int i = 0; i < toRender.Length; i++)
             {
-                BlockInstance block = toRender[i];
-                Vector3 blockPos = block.position + kvp.Key;
+                FaceInstance block = toRender[i];
+                Vector3 blockPos = toRender[i].position + kvp.Key;
                 if (blockPos.Y < -2)
-                    block = new(block.position, block.block, shaded);
+                    block = new(block.position, block.block, shadowIntensity, block.face);
                 else if (blockPos.Y <= 0 && blockPos.Z != 0 && Math.Abs(blockPos.X) % 10 > 5)
-                    block = new(block.position, block.block, shaded);
+                    block = new(block.position, block.block, shadowIntensity, block.face);
                 else if (blockPos.Y <= 0 && blockPos.X != 0 && Math.Abs(blockPos.Z) % 14 > 7)
-                    block = new(block.position, block.block, shaded);
-                else
-                    block = new(block.position, block.block, lit);
+                    block = new(block.position, block.block, shadowIntensity, block.face);
+                else if ((Direction)block.face == Direction.Bottom)
+                    block = new(block.position, block.block, shadowIntensity, block.face);
                 toRender[i] = block;
             }
             if (toRender.Length > 0)
                 chunksToRender.TryAdd(kvp.Key, toRender);
         });
-        foreach ((Vector3 chunkPos, BlockInstance[] blocks) in chunksToRender)
+        foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
             shader.RenderChunk(chunkPos, blocks);
     }
 }

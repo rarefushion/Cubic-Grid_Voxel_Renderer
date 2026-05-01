@@ -11,6 +11,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "C# Example", "C# Example", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example Usage", "C# Example\Example Usage.csproj", "{751FB9B9-3BB2-45EB-9E88-2AAB77A302C2}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cubic-Grid_Voxel_Core", "Cubic-Grid_Voxel_Core", "{70AC2324-671A-AF32-D114-F660A7ADAFB0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{7BB35742-365D-3E71-D84C-1F5661B3E869}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GalensUnified.CubicGrid.Core", "Cubic-Grid_Voxel_Core\Core\GalensUnified.CubicGrid.Core.csproj", "{6974F878-6800-4B56-B62B-32F5F2862C14}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +51,18 @@ Global
 		{751FB9B9-3BB2-45EB-9E88-2AAB77A302C2}.Release|x64.Build.0 = Release|Any CPU
 		{751FB9B9-3BB2-45EB-9E88-2AAB77A302C2}.Release|x86.ActiveCfg = Release|Any CPU
 		{751FB9B9-3BB2-45EB-9E88-2AAB77A302C2}.Release|x86.Build.0 = Release|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Debug|x64.Build.0 = Debug|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Debug|x86.Build.0 = Debug|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Release|x64.ActiveCfg = Release|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Release|x64.Build.0 = Release|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Release|x86.ActiveCfg = Release|Any CPU
+		{6974F878-6800-4B56-B62B-32F5F2862C14}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -52,5 +70,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{F98BD7C3-BB52-4A95-9E47-EE80C6EC01F0} = {7EDABDF6-8990-84A4-7DF6-01A292DBB0AB}
 		{751FB9B9-3BB2-45EB-9E88-2AAB77A302C2} = {FFF4F972-AB89-4AAB-5A0E-9EA634C4D492}
+		{7BB35742-365D-3E71-D84C-1F5661B3E869} = {70AC2324-671A-AF32-D114-F660A7ADAFB0}
+		{6974F878-6800-4B56-B62B-32F5F2862C14} = {7BB35742-365D-3E71-D84C-1F5661B3E869}
 	EndGlobalSection
 EndGlobal

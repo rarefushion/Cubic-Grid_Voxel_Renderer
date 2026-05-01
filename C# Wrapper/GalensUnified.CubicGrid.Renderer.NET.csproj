@@ -13,4 +13,8 @@
     <PackageReference Include="StbImageSharp" Version="2.30.15" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Cubic-Grid_Voxel_Core\Core\GalensUnified.CubicGrid.Core.csproj" />
+  </ItemGroup>
+
 </Project>
