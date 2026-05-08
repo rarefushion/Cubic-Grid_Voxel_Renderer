@@ -153,14 +153,20 @@ static class Program
     /// <summary>Loops through all chunks and their blocks to create the world.</summary>
     static void CreateWorld(GalensUnified.CubicGrid.Renderer.NET.Shader shader, Vector3D<int> worldPosition, int chunkLength, int worldLength)
     {
+        // Spin up threads
+        ThreadBatch threadBatch = new(Environment.ProcessorCount);
+        // Find positions to create
         List<Vector3D<int>> toCreate = [];
         for (int chunkZ = worldPosition.Z; chunkZ < worldPosition.Z + worldLength; chunkZ += chunkLength)
         for (int chunkX = worldPosition.X; chunkX < worldPosition.X + worldLength; chunkX += chunkLength)
         for (int chunkY = worldPosition.Y; chunkY < worldPosition.Y + worldLength; chunkY += chunkLength)
             toCreate.Add(new(chunkX, chunkY, chunkZ));
-
+        // Create Chunks
+        Task[] tasks = new Task[toCreate.Count];
+        int taskIndex = 0;
         ConcurrentDictionary<Vector3, ushort[]> chunkByPos = [];
-        Parallel.ForEach(toCreate, (chunkPos) =>
+        foreach (Vector3D<int> chunkPos in toCreate)
+        tasks[taskIndex++] = threadBatch.EnqueueJob(() =>
         {
             int chunkVolume = chunkLength * chunkLength * chunkLength;
             ushort[] blocks = new ushort[chunkVolume];
@@ -191,10 +197,14 @@ static class Program
             if (allSame && blocks[0] == 0)
                 return;
             chunkByPos.TryAdd((Vector3)chunkPos, blocks);
-        });
-        int chunkVolume = chunkLength * chunkLength * chunkLength;
+        }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
+        Task.WhenAll(tasks).GetAwaiter().GetResult();
+        // Cull and Shade faces
+        taskIndex = 0;
+        tasks = new Task[chunkByPos.Count];
         ConcurrentDictionary<Vector3, FaceInstance[]> chunksToRender = [];
-        Parallel.ForEach(chunkByPos, (kvp) =>
+        foreach (KeyValuePair<Vector3, ushort[]> kvp in chunkByPos)
+        tasks[taskIndex++] = threadBatch.EnqueueJob(() =>
         {
             ushort[] negZChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[0] * chunkLength), out ushort[]? negZBlocks) ? negZBlocks : [];
             ushort[] posZChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[1] * chunkLength), out ushort[]? posZBlocks) ? posZBlocks : [];
@@ -220,8 +230,11 @@ static class Program
             }
             if (toRender.Length > 0)
                 chunksToRender.TryAdd(kvp.Key, toRender);
-        });
+        }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
+        Task.WhenAll(tasks).GetAwaiter().GetResult();
+        // Render
         foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
             shader.RenderChunk(chunkPos, blocks);
+        threadBatch.Dispose();
     }
 }
