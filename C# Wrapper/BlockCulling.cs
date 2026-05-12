@@ -5,6 +5,16 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 
 public static class BlockCulling
 {
+    public enum TransparencyMode
+    {
+        /// <summary>This block is fully opaque.</summary>
+        Opaque,
+        /// <summary>No face culling when next to another transparent block.</summary>
+        RenderOnTransparent,
+        /// <summary>Culls this face when next to another transparent block.</summary>
+        CullOnTransparent
+    }
+    public static readonly Dictionary<ushort, TransparencyMode> transparencyModeByBlock = [];
     /// <summary>Provides a standared order for directions. -z, +z, +y, -y, -x then +x.</summary>
     public static readonly Vector3[] directions =
     [
@@ -34,6 +44,9 @@ public static class BlockCulling
     public static bool IsAir(Vector3 position, Span<ushort> blocks, int chunkLength) =>
         !IsLocal(position, chunkLength) || blocks[IndexByLocalPos(position, chunkLength)] == 0;
 
+    public static bool IsTransparent(Vector3 position, Span<ushort> blocks, int chunkLength) =>
+        !IsLocal(position, chunkLength) || transparencyModeByBlock[blocks[IndexByLocalPos(position, chunkLength)]] != TransparencyMode.Opaque;
+
     /// <summary>Wraps a global position into a local chunk position.</summary>
     /// <remarks>
     /// Uses a double-masking pattern to correctly handle negative coordinates,
@@ -58,8 +71,13 @@ public static class BlockCulling
             Vector3 pos = new(x, y, z);
             if (IsAir(pos, blocks, chunkLength))
                 continue;
+            TransparencyMode thisTransparent = transparencyModeByBlock[blocks[IndexByLocalPos(pos, chunkLength)]];
             for (int d = 0; d < 6; d++)
-                if (IsAir(pos + directions[d], blocks, chunkLength))
+                if
+                (
+                    IsAir(pos + directions[d], blocks, chunkLength) ||
+                    (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(pos + directions[d], blocks, chunkLength))
+                )
                     instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], 1, d));
         }
         return [.. instances];
@@ -88,6 +106,7 @@ public static class BlockCulling
             Vector3 pos = new(x, y, z);
             if (IsAir(pos, blocks, chunkLength))
                 continue;
+            TransparencyMode thisTransparent = transparencyModeByBlock[blocks[IndexByLocalPos(pos, chunkLength)]];
             for (int d = 0; d < 6; d++)
             {
                 Vector3 blockChecking = pos + directions[d];
@@ -107,7 +126,12 @@ public static class BlockCulling
                         _ => posXChunk
                     };
                 }
-                if (chunkChecking.Length != blocks.Length || IsAir(blockChecking, chunkChecking, chunkLength))
+                if
+                (
+                    chunkChecking.Length != blocks.Length ||
+                    IsAir(blockChecking, chunkChecking, chunkLength) ||
+                    (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(pos + directions[d], blocks, chunkLength))
+                )
                     instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], 1, d));
             }
         }

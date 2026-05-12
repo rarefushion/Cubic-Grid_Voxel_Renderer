@@ -10,7 +10,10 @@ using Silk.NET.Windowing;
 
 static class Program
 {
-    const int worldLengthInChunks = 65;
+    // MSAA allows partial transparency.
+    // Disabling limits to cutout transparency.
+    const bool MSAATransparency = true;
+    const int worldLengthInChunks = 33;
     const float shadowIntensity = 0.3f; // light level of shadows 0-1
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
@@ -21,6 +24,8 @@ static class Program
         WindowOptions options = WindowOptions.Default;
         options.Title = "Cubic-Grid Voxel Rendering Example";
         options.PreferredDepthBufferBits = 32;
+        if (MSAATransparency)
+            options.Samples = 8;
         IWindow window = Window.Create(options);
         window.Load += () => Load(window);
         window.Run();
@@ -58,18 +63,53 @@ static class Program
         // Faces are named by the Assets/Textures file name.
         Dictionary<ushort, BlockRenderData> renderDataByBlock = new()
         {
-            {0, new("Null", "Null", "Null", "Null", "Null", "Null")},                          // Air
-            {1, new("Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side")}, // Grass
-            {2, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},                          // Dirt
-            {3, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")}                     // Stone
+            // Air
+            {0, new("Null", "Null", "Null", "Null", "Null", "Null")},
+            // Grass
+            {1, new("Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side")},
+            // Dirt
+            {2, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},
+            // Stone
+            {3, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")},
+            // Glass
+            {
+                4, MSAATransparency
+                    ? new("Glass_Shade", "Glass_Shade", "Glass_Shade", "Glass_Shade", "Glass_Shade", "Glass_Shade")
+                    : new("Glass_Cutout", "Glass_Cutout", "Glass_Cutout", "Glass_Cutout", "Glass_Cutout", "Glass_Cutout")
+            }
         };
+        // Culling information for BlockCulling
+        Dictionary<ushort, BlockCulling.TransparencyMode> transparancyByBlock = new()
+        {
+            // Air
+            {0, BlockCulling.TransparencyMode.CullOnTransparent},
+            // Grass
+            {1, BlockCulling.TransparencyMode.Opaque},
+            // Dirt
+            {2, BlockCulling.TransparencyMode.Opaque},
+            // Stone
+            {3, BlockCulling.TransparencyMode.Opaque},
+            // Glass
+            {
+                4, MSAATransparency
+                    ? BlockCulling.TransparencyMode.RenderOnTransparent
+                    : BlockCulling.TransparencyMode.CullOnTransparent
+            }
+        };
+        foreach ((ushort block, BlockCulling.TransparencyMode mode) in transparancyByBlock)
+            BlockCulling.transparencyModeByBlock.Add(block, mode);
 
         // Create Graphics and Shader
         GL graphics = window.CreateOpenGL();
+        if (MSAATransparency)
+        {
+            graphics.Enable(EnableCap.Multisample);
+            graphics.Enable(EnableCap.SampleAlphaToCoverage);
+        }
         graphics.Enable(EnableCap.DepthTest);
         graphics.DepthFunc(DepthFunction.Less);
         graphics.ClearColor(System.Drawing.Color.CornflowerBlue);
-        window.Resize += size => graphics.Viewport(0, 0, (uint)size.X, (uint)size.Y);
+        window.Resize += size => graphics.Viewport(0, 0, (uint)window.FramebufferSize.X, (uint)window.FramebufferSize.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         int chunkLength = 16;
         DirectoryInfo assets = Directory.CreateDirectory(Path.Combine(ApplicationEnvironment.ApplicationBasePath, "Assets"));
@@ -189,6 +229,10 @@ static class Program
                     _ => 3,     // Stone default
                 };
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 > 80) ? (ushort)0 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.Z) % 96 == 80 && Math.Abs(blockPos.X) % 96 > 80) ? (ushort)4 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 == 0 && blockPos.X != 0) ? (ushort)4 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.Z) % 96 == 0 && Math.Abs(blockPos.X) % 96 > 80 && blockPos.Z != 0) ? (ushort)4 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 == 80) ? (ushort)4 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)1 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)1 : blocks[i];
                 if (blocks[i] != blocks[0])
@@ -218,13 +262,15 @@ static class Program
             {
                 FaceInstance block = toRender[i];
                 Vector3 blockPos = toRender[i].position + kvp.Key;
+                bool transparent = BlockCulling.transparencyModeByBlock[(ushort)block.block] != BlockCulling.TransparencyMode.Opaque;
+
                 if (blockPos.Y < -2)
                     block = new(block.position, block.block, shadowIntensity, block.face);
                 else if (blockPos.Y <= 0 && blockPos.Z != 0 && Math.Abs(blockPos.X) % 10 > 5)
                     block = new(block.position, block.block, shadowIntensity, block.face);
                 else if (blockPos.Y <= 0 && blockPos.X != 0 && Math.Abs(blockPos.Z) % 14 > 7)
                     block = new(block.position, block.block, shadowIntensity, block.face);
-                else if ((Direction)block.face == Direction.Bottom)
+                else if ((Direction)block.face == Direction.Bottom && !transparent)
                     block = new(block.position, block.block, shadowIntensity, block.face);
                 toRender[i] = block;
             }
