@@ -130,7 +130,7 @@ public static class BlockCulling
                 (
                     chunkChecking.Length != blocks.Length ||
                     IsAir(blockChecking, chunkChecking, chunkLength) ||
-                    (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(pos + directions[d], blocks, chunkLength))
+                    (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(blockChecking, chunkChecking, chunkLength))
                 )
                     instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], 1, d));
             }
