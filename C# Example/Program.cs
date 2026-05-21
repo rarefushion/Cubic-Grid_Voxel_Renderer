@@ -121,7 +121,7 @@ static class Program
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
             chunkLength * chunkLength * chunkLength * FaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
-            camNearPlane,
+            1024,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
             messageErr => Console.WriteLine(messageErr),
@@ -204,6 +204,7 @@ static class Program
         // Create Chunks
         Task[] tasks = new Task[toCreate.Count];
         int taskIndex = 0;
+        uint[] worldMask = new uint[(worldLength * worldLength * worldLength) / 32 + 1];
         ConcurrentDictionary<Vector3, ushort[]> chunkByPos = [];
         foreach (Vector3D<int> chunkPos in toCreate)
         tasks[taskIndex++] = threadBatch.EnqueueJob(() =>
@@ -237,6 +238,14 @@ static class Program
                 blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)1 : blocks[i];
                 if (blocks[i] != blocks[0])
                     allSame = false;
+                if (blocks[i] != 0 && BlockCulling.transparencyModeByBlock[blocks[i]] == BlockCulling.TransparencyMode.Opaque)
+                {
+                    Vector3D<int> worldPos = blockPos - worldPosition;
+                    int index = worldPos.X + worldPos.Y * worldLength + worldPos.Z * worldLength * worldLength;
+                    int uintIndex = index / 32;
+                    int bitIndex = index % 32;
+                    Interlocked.Or(ref worldMask[uintIndex], 1u << bitIndex);
+                }
             }
             if (allSame && blocks[0] == 0)
                 return;
@@ -244,6 +253,7 @@ static class Program
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Cull and Shade faces
+        shader.SetWorldMask(worldMask, new Vector3D<int>(worldLength, worldLength, worldLength), worldPosition);
         taskIndex = 0;
         tasks = new Task[chunkByPos.Count];
         ConcurrentDictionary<Vector3, FaceInstance[]> chunksToRender = [];

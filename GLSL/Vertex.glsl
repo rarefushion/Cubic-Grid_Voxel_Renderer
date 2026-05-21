@@ -22,9 +22,12 @@ out flat int vFace;
 out float vBrightness;
 
 uniform vec3 chunkPos;
+uniform vec3 sunDirection;
 
 uniform mat4 projection;
 uniform mat4 view;
+
+bool Raycast(vec3 position, vec3 direction);
 
 void main()
 {
@@ -33,7 +36,9 @@ void main()
     vBlock = aBlock;
     vUV = vert.uv;
     vFace = aFace;
-    vBrightness = aBrightness;
+    vBrightness = 1.0;
+    if (Raycast(chunkPos + aPos, sunDirection))
+        vBrightness = 0.2;
 
     gl_Position = projection * view * vec4(vert.position + chunkPos + aPos, 1.0);
 }
