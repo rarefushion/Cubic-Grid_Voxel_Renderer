@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.InteropServices;
 using Silk.NET.GLFW;
 using Silk.NET.OpenGL;
@@ -8,7 +7,7 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 
 public class Shader
 {
-    public record ChunkRenderingData(Vector3 Position, FaceInstance[] Blocks, int RegionInstanceIndex, int RegionID);
+    public record ChunkRenderingData(Vector3 Position, FaceInstance[] Blocks, uint RegionInstanceIndex, int RegionID);
 
     public readonly Dictionary<Vector3, ChunkRenderingData> chunkByPos = [];
     public Dictionary<ushort, BlockRenderData> renderDataByBlock;
@@ -21,16 +20,11 @@ public class Shader
     private readonly int projectionLocation;
     private readonly int viewLocation;
     private readonly int chunkPosLocation;
-    private readonly int sunDirectionLocation;
-    private readonly int worldOriginLocation;
-    private readonly int worldDimensionsLocation;
-    private readonly uint worldMaskBuffer;
     private readonly uint tbo;
     private readonly uint bufferSize;
     private readonly nint memBlockInstanceBlockOffset;
     private readonly nint memBlockInstanceBrightnessOffset;
     private readonly nint memBlockInstanceFaceOffset;
-    private Vector3 _sunDirection = Vector3.Normalize(new Vector3(0.5f, 1.0f, 0.3f));
 
     private readonly GL GL;
     private readonly Dictionary<int, RegionBuffer> regionByID = [];
@@ -72,7 +66,7 @@ public class Shader
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, regionByID[currentRegionID].Vbo);
         GL.BindVertexArray(regionByID[currentRegionID].Vao);
         int index = regionByID[currentRegionID].BytePointer;
-        ChunkRenderingData chunk = new(position, blocks, index / FaceInstance.MemorySize, currentRegionID);
+        ChunkRenderingData chunk = new(position, blocks, (uint)(index / FaceInstance.MemorySize), currentRegionID);
         fixed (void* buf = blocks.ToArray())
         {
             GL.BufferSubData(BufferTargetARB.ArrayBuffer, index, size, buf);
@@ -81,7 +75,10 @@ public class Shader
         regionByID[currentRegionID].Chunks.Add(position);
         chunkByPos[position] = chunk;
         OutputErrors("Voxel Mat Creating Chunk");
+        GL.UseProgram(0);
     }
+
+    public uint GetBufferObjectByRegion(int regionID) => regionByID[regionID].Vbo;
 
     private unsafe void NewRegion()
     {
@@ -138,20 +135,7 @@ public class Shader
             }
         }
         OutputErrors("Voxel Mat Render");
-    }
-
-    public unsafe void SetWorldMask(uint[] mask, Silk.NET.Maths.Vector3D<int> dimensions, Silk.NET.Maths.Vector3D<int> origin)
-    {
-        GL.UseProgram(shaderProgram);
-        GL.Uniform3(worldDimensionsLocation, dimensions.X, dimensions.Y, dimensions.Z);
-        GL.Uniform3(worldOriginLocation, origin.X, origin.Y, origin.Z);
-
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, worldMaskBuffer);
-        fixed (void* ptr = mask)
-        {
-            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(mask.Length * sizeof(uint)), ptr, BufferUsageARB.StaticDraw);
-        }
-        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 4, worldMaskBuffer);
+        GL.UseProgram(0);
     }
 
     /// <summary>Initializes the voxel engine by compiling shaders, allocating GPU buffers, and building the texture array.</summary>
@@ -170,7 +154,6 @@ public class Shader
         string GLSLScriptsPath,
         int chunkLength,
         int vramBufferRegionSize,
-        int maxShadowDistance,
         Dictionary<ushort, BlockRenderData> renderDataByBlock,
         Dictionary<string, Image> imageByName,
         Action<string>? errorAction = null,
@@ -182,10 +165,6 @@ public class Shader
         OutputError = errorAction;
         OutputLog = logAction;
         //Create Shader
-        string raymarchShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "RaymarchBitmask.glsl"));
-        uint raymarchShader = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(raymarchShader, raymarchShaderCode);
-        GL.CompileShader(raymarchShader);
         string vertexShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "Vertex.glsl"));
         uint vertexShader = GL.CreateShader(ShaderType.VertexShader);
         GL.ShaderSource(vertexShader, vertexShaderCode);
@@ -195,7 +174,6 @@ public class Shader
         GL.ShaderSource(fragmentShader, fragmentShaderCode);
         GL.CompileShader(fragmentShader);
         shaderProgram = GL.CreateProgram();
-        GL.AttachShader(shaderProgram, raymarchShader);
         GL.AttachShader(shaderProgram, vertexShader);
         GL.AttachShader(shaderProgram, fragmentShader);
         GL.LinkProgram(shaderProgram);
@@ -204,10 +182,8 @@ public class Shader
         if (success == 0)
             OutputError?.Invoke("Program link failed: " + GL.GetProgramInfoLog(shaderProgram));
         // Clean up
-        GL.DetachShader(shaderProgram, raymarchShader);
         GL.DetachShader(shaderProgram, vertexShader);
         GL.DetachShader(shaderProgram, fragmentShader);
-        GL.DeleteShader(raymarchShader);
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
         GL.UseProgram(shaderProgram);
@@ -217,12 +193,6 @@ public class Shader
         this.chunkLength = chunkLength;
         chunkVolume = chunkLength * chunkLength * chunkLength;
         chunkPosLocation = GL.GetUniformLocation(shaderProgram, "chunkPos");
-        sunDirectionLocation = GL.GetUniformLocation(shaderProgram, "sunDirection");
-        worldOriginLocation = GL.GetUniformLocation(shaderProgram, "worldOrigin");
-        worldDimensionsLocation = GL.GetUniformLocation(shaderProgram, "worldDimensions");
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "maxRaydistance"), maxShadowDistance);
-        worldMaskBuffer = GL.GenBuffer();
-        GL.Uniform3(sunDirectionLocation, _sunDirection);
         // Region Buffers
         int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
         if (vramBufferRegionSize > maxSSBOSize)
@@ -313,16 +283,17 @@ public class Shader
 
         OutputLogs("Shader", GL.GetProgramInfoLog(shaderProgram));
         OutputErrors("Voxel Mat Instantiator");
+        GL.UseProgram(0);
     }
 
-    private void OutputErrors(string location)
+    public void OutputErrors(string location)
     {
         GLEnum err;
         while ((err = GL.GetError()) != GLEnum.NoError)
             OutputError?.Invoke($"OpenGL Error @{location}: {err}");
     }
 
-    private void OutputLogs(string location, string log)
+    public void OutputLogs(string location, string log)
     {
         if (string.IsNullOrEmpty(log))
             return;
