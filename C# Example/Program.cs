@@ -18,7 +18,7 @@ static class Program
     // MSAA allows partial transparency.
     // Disabling limits to cutout transparency.
     const bool MSAATransparency = true;
-    const int worldLengthInChunks = 13;
+    const int worldLengthInChunks = 17;
     const float shadowIntensity = 0.3f; // light level of shadows 0-1
     public static readonly float sunMoveTimeInterval = .25f;
     public static readonly float sunRoatateDegrees = 0.125f;
@@ -312,8 +312,6 @@ static class Program
             sunTimeSinceMove -= sunMoveTimeInterval;
             sunRotation = Vector3.Transform(sunRotation, Quaternion.CreateFromAxisAngle(Vector3.UnitY, sunRoatateDegrees));
             shader.Shading.SetDirectionalLight(sunRotation);
-            foreach (Vector3 chunk in shader.chunkByPos.Keys)
-                shader.Shading.DirectionalShadeChunk(chunk);
         }
     }
 }

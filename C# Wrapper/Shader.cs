@@ -126,12 +126,14 @@ public class Shader
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
         foreach (RegionBuffer region in regionByID.Values)
         {
-            GL.BindVertexArray(region.Vao);
-            GL.BindBuffer(BufferTargetARB.ArrayBuffer, region.Vbo);
             foreach (ChunkRenderingData chunk in region.Chunks.Select(p => chunkByPos[p]))
             {
                 if (!MatrixPlanes.IsBoxInFrustum(planes, chunk.Position, chunk.Position + Vector3.One * chunkLength))
                     continue;
+                Shading.DirectionalShadeChunk(chunk.Position);
+                GL.UseProgram(shaderProgram);
+                GL.BindVertexArray(region.Vao);
+                GL.BindBuffer(BufferTargetARB.ArrayBuffer, region.Vbo);
                 GL.Uniform3(chunkPosLocation, chunk.Position);
                 GL.DrawArraysInstancedBaseInstance(PrimitiveType.Triangles, 0, 6, (uint)chunk.Blocks.Length, (uint)chunk.RegionInstanceIndex);
             }
