@@ -1,14 +1,12 @@
 using System.Numerics;
-using GalensUnified.CubicGrid.Core;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 
 namespace GalensUnified.CubicGrid.Renderer.NET;
 
-public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
+public class ChunkShading
 {
     public const float RayEpsilon = 0.0000001f;
-    public static readonly int uintsPerChunk = TChunkDims.Volume / 32;
 
     public Vector3D<int> WorldDimensionsInChunks { get; private set; }
     private Vector3D<int> worldOrigin;
@@ -30,6 +28,8 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
     private readonly int worldOriginLocation;
     private readonly int worldDimensionsLocation;
     private readonly uint worldMaskBuffer;
+    private readonly int chunkLength;
+    private readonly int uintsPerChunk;
     private bool directionalLighting = false;
     private DirectionalLightingSettings directionalLightingSettings;
 
@@ -114,7 +114,7 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
     private nint ChunkByteOffsetByPosition(Vector3D<int> pos)
     {
         pos -= worldOrigin;
-        pos /= TChunkDims.Length;
+        pos /= chunkLength;
         int chunkIndex = (pos.Z * WorldDimensionsInChunks.Y + pos.Y) * WorldDimensionsInChunks.X + pos.X;
         return (nint)chunkIndex * uintsPerChunk * sizeof(uint);
     }
@@ -134,7 +134,6 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
         GL.Uniform1(bufferStartLocation, chunkData.RegionInstanceIndex);
         GL.Uniform1(bufferEndLocation, chunkData.RegionInstanceIndex + (uint)chunkData.Blocks.Length);
         GL.Uniform3(chunkPosLocation, chunk);
-        GL.Uniform1(chunkLengthLocation, TChunkDims.Length);
         uint regionBuffer = shader.GetBufferObjectByRegion(chunkData.RegionID);
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 0, regionBuffer);
 
@@ -145,7 +144,7 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
         shader.OutputErrors("Chunk Shading ShadeChunk Dispatch");
     }
 
-    public ChunkShading(Shader shader, GL GL, string GLSLScriptsPath, Vector3D<int> worldDimensionsInChunks)
+    public ChunkShading(Shader shader, GL GL, string GLSLScriptsPath, int chunkLength, Vector3D<int> worldDimensionsInChunks)
     {
         this.shader = shader;
         this.GL = GL;
@@ -188,6 +187,10 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
         maxRaydistanceLocation = GL.GetUniformLocation(directionalComputeProgram, "maxRaydistance");
         worldOriginLocation = GL.GetUniformLocation(directionalComputeProgram, "worldOrigin");
         worldDimensionsLocation = GL.GetUniformLocation(directionalComputeProgram, "worldDimensionsInChunks");
+
+        this.chunkLength = chunkLength;
+        this.uintsPerChunk = chunkLength * chunkLength * chunkLength / 32;
+        GL.Uniform1(chunkLengthLocation, chunkLength);
 
         worldMaskBuffer = GL.GenBuffer();
         SetWorldDimensions(worldDimensionsInChunks);

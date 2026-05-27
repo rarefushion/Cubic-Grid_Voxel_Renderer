@@ -135,7 +135,7 @@ static class Program
             messageLog => Console.WriteLine(messageLog)
         );
         // Shading Setup
-        ChunkShading<ChunkDims> chunkShading = new(shader, graphics, Path.Combine(assets.FullName, "GLSL"), new(worldLengthInChunks));
+        ChunkShading chunkShading = new(shader, graphics, Path.Combine(assets.FullName, "GLSL"), ChunkDims.Length, new(worldLengthInChunks));
         DirectionalLightingSettings directionalLightingSettings =
             new (sunRotation, true, shadowIntensity, 1 - shadowIntensity, 0, true, shadowIntensity, 1, 1024);
         chunkShading.SetDirectionalLightingSettings(directionalLightingSettings);
@@ -208,7 +208,7 @@ static class Program
     static void CreateWorld
     (
         GalensUnified.CubicGrid.Renderer.NET.Shader shader,
-        ChunkShading<ChunkDims> chunkShading,
+        ChunkShading chunkShading,
         Vector3D<int> worldPosition,
         int chunkLength,
         int worldLength
@@ -304,7 +304,7 @@ static class Program
         threadBatch.Dispose();
     }
 
-    public static void SunUpdate(double deltaTime, GalensUnified.CubicGrid.Renderer.NET.Shader shader, ChunkShading<ChunkDims> chunkShading)
+    public static void SunUpdate(double deltaTime, GalensUnified.CubicGrid.Renderer.NET.Shader shader, ChunkShading chunkShading)
     {
         const double maxDelta = 0.5;
         sunTimeSinceMove += Math.Min(deltaTime, maxDelta);
