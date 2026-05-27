@@ -35,6 +35,7 @@ public class ChunkShading
 
     private readonly GL GL;
     private readonly Shader shader;
+    private readonly HashSet<Vector3> ChunksShaded = [];
 
     public void SetWorldOriginPosition(Vector3D<int> origin)
     {
@@ -70,6 +71,7 @@ public class ChunkShading
         }
         GL.UseProgram(0);
         shader.OutputErrors("Chunk Shading SetChunkMask");
+        ChunksShaded.Clear();
     }
 
     public void SetDirectionalLightingSettings(DirectionalLightingSettings? settings)
@@ -93,6 +95,7 @@ public class ChunkShading
         GL.Uniform1(maxRaydistanceLocation, directionalLightingSettings.maxRaydistance);
         GL.UseProgram(0);
         shader.OutputErrors("Chunk Shading Set Directional Lighting Settings");
+        ChunksShaded.Clear();
     }
 
     public void SetDirectionalLight(Vector3 direction)
@@ -109,6 +112,7 @@ public class ChunkShading
         GL.Uniform3(lightDirectionLocation, -directionalLightingSettings.lightDirection);
         GL.UseProgram(0);
         shader.OutputErrors("Chunk Shading Set Directional Light");
+        ChunksShaded.Clear();
     }
 
     private nint ChunkByteOffsetByPosition(Vector3D<int> pos)
@@ -124,11 +128,8 @@ public class ChunkShading
     /// </remarks>
     public void DirectionalShadeChunk(Vector3 chunk)
     {
-        if (!directionalLighting)
-        {
-            Console.WriteLine("Directional Lighting Settings not assigned.");
+        if (!directionalLighting || ChunksShaded.Contains(chunk))
             return;
-        }
         GL.UseProgram(directionalComputeProgram);
         Shader.ChunkRenderingData chunkData = shader.chunkByPos[chunk];
         GL.Uniform1(bufferStartLocation, chunkData.RegionInstanceIndex);
@@ -142,6 +143,7 @@ public class ChunkShading
         GL.MemoryBarrier(MemoryBarrierMask.VertexAttribArrayBarrierBit);
         GL.UseProgram(0);
         shader.OutputErrors("Chunk Shading ShadeChunk Dispatch");
+        ChunksShaded.Add(chunk);
     }
 
     public ChunkShading(Shader shader, GL GL, string GLSLScriptsPath, int chunkLength, Vector3D<int> worldDimensionsInChunks)
