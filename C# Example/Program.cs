@@ -18,8 +18,12 @@ static class Program
     // MSAA allows partial transparency.
     // Disabling limits to cutout transparency.
     const bool MSAATransparency = true;
-    const int worldLengthInChunks = 33;
+    const int worldLengthInChunks = 13;
     const float shadowIntensity = 0.3f; // light level of shadows 0-1
+    public static readonly float sunMoveTimeInterval = .25f;
+    public static readonly float sunRoatateDegrees = 0.125f;
+    public static Vector3 sunRotation = new(0.3f, 0.4f, 0.3f);
+    public static double sunTimeSinceMove = 0;
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
@@ -144,6 +148,7 @@ static class Program
             CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
             CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
+        window.Render += dt => SunUpdate(dt, shader, chunkShading);
     }
 
     /// <summary>Calculates the camera rotation every frame.</summary>
@@ -289,8 +294,21 @@ static class Program
         foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
         {
             shader.RenderChunk(chunkPos, blocks);
-            chunkShading.DirectionalShadeChunk(chunkPos, true, shadowIntensity, 1 - shadowIntensity, 0, new Vector3(0.2f, 0.7f, 0.1f), true, shadowIntensity, 1, 1024);
+            chunkShading.DirectionalShadeChunk(chunkPos, true, shadowIntensity, 1 - shadowIntensity, 0, sunRotation, true, shadowIntensity, 1, 1024);
         }
         threadBatch.Dispose();
+    }
+
+    public static void SunUpdate(double deltaTime, GalensUnified.CubicGrid.Renderer.NET.Shader shader, ChunkShading<ChunkDims> chunkShading)
+    {
+        const double maxDelta = 0.5;
+        sunTimeSinceMove += Math.Min(deltaTime, maxDelta);
+        while (sunTimeSinceMove >= sunMoveTimeInterval)
+        {
+            sunTimeSinceMove -= sunMoveTimeInterval;
+            sunRotation = Vector3.Transform(sunRotation, Quaternion.CreateFromAxisAngle(Vector3.UnitY, sunRoatateDegrees));
+            foreach (Vector3 chunk in shader.chunkByPos.Keys)
+                chunkShading.DirectionalShadeChunk(chunk, true, shadowIntensity, 1 - shadowIntensity, 0, sunRotation, true, shadowIntensity, 1, 1024);
+        }
     }
 }
