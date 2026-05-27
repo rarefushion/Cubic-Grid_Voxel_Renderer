@@ -36,11 +36,11 @@ const vec3[] directions = vec3[]
 const vec3[] centerOffsets = vec3[]
 (
     vec3(0.5, 0.5, 0.0),
-    vec3(0.5, 0.5, 1.0),
-    vec3(0.5, 1.0, 0.5),
+    vec3(0.5, 0.5, 0.9),
+    vec3(0.5, 0.9, 0.5),
     vec3(0.5, 0.0, 0.5),
     vec3(0.0, 0.5, 0.5),
-    vec3(1.0, 0.5, 0.5)
+    vec3(0.9, 0.5, 0.5)
 );
 
 bool Raycast(vec3 position, vec3 direction);

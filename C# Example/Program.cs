@@ -8,6 +8,11 @@ using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 
+// ChunkDims can be switched out for other sized chunks.
+// Core.ChunkDims are chunks of length 16 (there for volume of 4096).
+// Others exist for 8(Core.HalfChunkDims), 32(Core.DoubleChunkDims), 64 and 128.
+using ChunkDims = GalensUnified.CubicGrid.Core.ChunkDims;
+
 static class Program
 {
     // MSAA allows partial transparency.
@@ -111,7 +116,6 @@ static class Program
         graphics.ClearColor(System.Drawing.Color.CornflowerBlue);
         window.Resize += size => graphics.Viewport(0, 0, (uint)window.FramebufferSize.X, (uint)window.FramebufferSize.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        int chunkLength = 16;
         DirectoryInfo assets = Directory.CreateDirectory(Path.Combine(ApplicationEnvironment.ApplicationBasePath, "Assets"));
         // Ambiguous between mine and Silk.NET.OpenGL.Shader :sob:
         GalensUnified.CubicGrid.Renderer.NET.Shader shader = new
@@ -119,20 +123,21 @@ static class Program
 
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
-            chunkLength,
-            chunkLength * chunkLength * chunkLength * FaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
+            ChunkDims.Length,
+            ChunkDims.Volume * FaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
-        ChunkShading chunkShading = new(shader, graphics, Path.Combine(assets.FullName, "GLSL"));
+        ChunkShading<ChunkDims> chunkShading = new(shader, graphics, Path.Combine(assets.FullName, "GLSL"), new(worldLengthInChunks));
 
         // Create World
-        int worldLength = worldLengthInChunks * chunkLength;
+        int worldLength = worldLengthInChunks * ChunkDims.Length;
         Vector3D<int> worldPosition = -Vector3D<int>.One * worldLength / 2;
-        worldPosition.Y += chunkLength * 2;
-        CreateWorld(shader, chunkShading, worldPosition, chunkLength, worldLength);
+        worldPosition.Y += ChunkDims.Length * 2;
+        chunkShading.SetWorldOriginPosition(worldPosition);
+        CreateWorld(shader, chunkShading, worldPosition, ChunkDims.Length, worldLength);
 
         window.Render += dt => shader.Render
         (
@@ -191,7 +196,14 @@ static class Program
     }
 
     /// <summary>Loops through all chunks and their blocks to create the world.</summary>
-    static void CreateWorld(GalensUnified.CubicGrid.Renderer.NET.Shader shader, ChunkShading chunkShading, Vector3D<int> worldPosition, int chunkLength, int worldLength)
+    static void CreateWorld
+    (
+        GalensUnified.CubicGrid.Renderer.NET.Shader shader,
+        ChunkShading<ChunkDims> chunkShading,
+        Vector3D<int> worldPosition,
+        int chunkLength,
+        int worldLength
+    )
     {
         // Spin up threads
         ThreadBatch threadBatch = new(Environment.ProcessorCount);
@@ -204,19 +216,20 @@ static class Program
         // Create Chunks
         Task[] tasks = new Task[toCreate.Count];
         int taskIndex = 0;
-        uint[] worldMask = new uint[(worldLength * worldLength * worldLength) / 32 + 1];
+        ConcurrentDictionary<Vector3, uint[]> lightMaskByPos = [];
         ConcurrentDictionary<Vector3, ushort[]> chunkByPos = [];
         foreach (Vector3D<int> chunkPos in toCreate)
         tasks[taskIndex++] = threadBatch.EnqueueJob(() =>
         {
-            int chunkVolume = chunkLength * chunkLength * chunkLength;
-            ushort[] blocks = new ushort[chunkVolume];
+            ushort[] blocks = new ushort[ChunkDims.Volume];
+            uint[] lightMask = new uint[ChunkDims.Volume / 32];
             bool allSame = true;
             for (int blockZ = 0; blockZ < chunkLength; blockZ++)
             for (int blockX = 0; blockX < chunkLength; blockX++)
             for (int blockY = 0; blockY < chunkLength; blockY++)
             {
-                Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunkPos;
+                Vector3D<int> localPos = new(blockX, blockY, blockZ);
+                Vector3D<int> blockPos = localPos + chunkPos;
                 int i = (blockZ * chunkLength + blockY) * chunkLength + blockX;
                 blocks[i] = blockPos.Y switch
                 {
@@ -240,20 +253,18 @@ static class Program
                     allSame = false;
                 if (blocks[i] != 0 && BlockCulling.transparencyModeByBlock[blocks[i]] == BlockCulling.TransparencyMode.Opaque)
                 {
-                    Vector3D<int> worldPos = blockPos - worldPosition;
-                    int index = worldPos.X + worldPos.Y * worldLength + worldPos.Z * worldLength * worldLength;
-                    int uintIndex = index / 32;
-                    int bitIndex = index % 32;
-                    Interlocked.Or(ref worldMask[uintIndex], 1u << bitIndex);
+                    int uintIndex = i / 32;
+                    int bitIndex = i % 32;
+                    lightMask[uintIndex] |= 1u << bitIndex;
                 }
             }
             if (allSame && blocks[0] == 0)
                 return;
+            lightMaskByPos.TryAdd((Vector3)chunkPos, lightMask);
             chunkByPos.TryAdd((Vector3)chunkPos, blocks);
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Cull faces
-        chunkShading.SetWorldMask(worldMask, new Vector3D<int>(worldLength, worldLength, worldLength), worldPosition);
         taskIndex = 0;
         tasks = new Task[chunkByPos.Count];
         ConcurrentDictionary<Vector3, FaceInstance[]> chunksToRender = [];
@@ -271,6 +282,9 @@ static class Program
                 chunksToRender.TryAdd(kvp.Key, toRender);
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
+        // Assign Shading Masks
+        foreach ((Vector3 chunkPos, uint[] mask) in lightMaskByPos)
+            chunkShading.SetChunkMask(chunkPos.Floor(), mask);
         // Render And Shade
         foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
         {
