@@ -22,7 +22,7 @@ static class Program
     const float shadowIntensity = 0.3f; // light level of shadows 0-1
     public static readonly float sunMoveTimeInterval = .25f;
     public static readonly float sunRoatateDegrees = 0.125f;
-    public static Vector3 sunRotation = new(0.3f, 0.4f, 0.3f);
+    public static Vector3 sunRotation = new(-0.3f, -0.4f, -0.3f);
     public static double sunTimeSinceMove = 0;
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
@@ -134,7 +134,11 @@ static class Program
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
+        // Shading Setup
         ChunkShading<ChunkDims> chunkShading = new(shader, graphics, Path.Combine(assets.FullName, "GLSL"), new(worldLengthInChunks));
+        DirectionalLightingSettings directionalLightingSettings =
+            new (sunRotation, true, shadowIntensity, 1 - shadowIntensity, 0, true, shadowIntensity, 1, 1024);
+        chunkShading.SetDirectionalLightingSettings(directionalLightingSettings);
 
         // Create World
         int worldLength = worldLengthInChunks * ChunkDims.Length;
@@ -295,7 +299,7 @@ static class Program
         foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
         {
             shader.RenderChunk(chunkPos, blocks);
-            chunkShading.DirectionalShadeChunk(chunkPos, true, shadowIntensity, 1 - shadowIntensity, 0, true, shadowIntensity, 1, 1024);
+            chunkShading.DirectionalShadeChunk(chunkPos);
         }
         threadBatch.Dispose();
     }
@@ -310,7 +314,7 @@ static class Program
             sunRotation = Vector3.Transform(sunRotation, Quaternion.CreateFromAxisAngle(Vector3.UnitY, sunRoatateDegrees));
             chunkShading.SetDirectionalLight(sunRotation);
             foreach (Vector3 chunk in shader.chunkByPos.Keys)
-                chunkShading.DirectionalShadeChunk(chunk, true, shadowIntensity, 1 - shadowIntensity, 0, true, shadowIntensity, 1, 1024);
+                chunkShading.DirectionalShadeChunk(chunk);
         }
     }
 }
