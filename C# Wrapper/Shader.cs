@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using System.Runtime.InteropServices;
 using Silk.NET.GLFW;
+using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 
 namespace GalensUnified.CubicGrid.Renderer.NET;
@@ -11,6 +12,7 @@ public class Shader
 
     public readonly Dictionary<Vector3, ChunkRenderingData> chunkByPos = [];
     public Dictionary<ushort, BlockRenderData> renderDataByBlock;
+    public readonly ChunkShading Shading;
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
     public uint shaderProgram;
@@ -153,6 +155,7 @@ public class Shader
         GL openGL,
         string GLSLScriptsPath,
         int chunkLength,
+        Vector3D<int> worldDimensionsInChunks,
         int vramBufferRegionSize,
         Dictionary<ushort, BlockRenderData> renderDataByBlock,
         Dictionary<string, Image> imageByName,
@@ -280,6 +283,8 @@ public class Shader
             GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(block.Length * sizeof(Vertex)), buf, BufferUsageARB.DynamicDraw);
         }
         GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 3, shapesBuffer);
+        // Shading
+        Shading = new ChunkShading(this, GL, GLSLScriptsPath, chunkLength, worldDimensionsInChunks);
 
         OutputLogs("Shader", GL.GetProgramInfoLog(shaderProgram));
         OutputErrors("Voxel Mat Instantiator");

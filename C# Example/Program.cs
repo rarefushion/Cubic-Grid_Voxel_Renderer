@@ -128,6 +128,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             ChunkDims.Length,
+            new(worldLengthInChunks),
             ChunkDims.Volume * FaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -135,24 +136,23 @@ static class Program
             messageLog => Console.WriteLine(messageLog)
         );
         // Shading Setup
-        ChunkShading chunkShading = new(shader, graphics, Path.Combine(assets.FullName, "GLSL"), ChunkDims.Length, new(worldLengthInChunks));
         DirectionalLightingSettings directionalLightingSettings =
             new (sunRotation, true, shadowIntensity, 1 - shadowIntensity, 0, true, shadowIntensity, 1, 1024);
-        chunkShading.SetDirectionalLightingSettings(directionalLightingSettings);
+        shader.Shading.SetDirectionalLightingSettings(directionalLightingSettings);
 
         // Create World
         int worldLength = worldLengthInChunks * ChunkDims.Length;
         Vector3D<int> worldPosition = -Vector3D<int>.One * worldLength / 2;
         worldPosition.Y += ChunkDims.Length * 2;
-        chunkShading.SetWorldOriginPosition(worldPosition);
-        CreateWorld(shader, chunkShading, worldPosition, ChunkDims.Length, worldLength);
+        shader.Shading.SetWorldOriginPosition(worldPosition);
+        CreateWorld(shader, worldPosition, ChunkDims.Length, worldLength);
 
         window.Render += dt => shader.Render
         (
             CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
             CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
-        window.Render += dt => SunUpdate(dt, shader, chunkShading);
+        window.Render += dt => SunUpdate(dt, shader);
     }
 
     /// <summary>Calculates the camera rotation every frame.</summary>
@@ -208,7 +208,6 @@ static class Program
     static void CreateWorld
     (
         GalensUnified.CubicGrid.Renderer.NET.Shader shader,
-        ChunkShading chunkShading,
         Vector3D<int> worldPosition,
         int chunkLength,
         int worldLength
@@ -293,18 +292,18 @@ static class Program
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Assign Shading Masks
         foreach ((Vector3 chunkPos, uint[] mask) in lightMaskByPos)
-            chunkShading.SetChunkMask(chunkPos.Floor(), mask);
-        chunkShading.SetDirectionalLight(sunRotation);
+            shader.Shading.SetChunkMask(chunkPos.Floor(), mask);
+        shader.Shading.SetDirectionalLight(sunRotation);
         // Render And Shade
         foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
         {
             shader.RenderChunk(chunkPos, blocks);
-            chunkShading.DirectionalShadeChunk(chunkPos);
+            shader.Shading.DirectionalShadeChunk(chunkPos);
         }
         threadBatch.Dispose();
     }
 
-    public static void SunUpdate(double deltaTime, GalensUnified.CubicGrid.Renderer.NET.Shader shader, ChunkShading chunkShading)
+    public static void SunUpdate(double deltaTime, GalensUnified.CubicGrid.Renderer.NET.Shader shader)
     {
         const double maxDelta = 0.5;
         sunTimeSinceMove += Math.Min(deltaTime, maxDelta);
@@ -312,9 +311,9 @@ static class Program
         {
             sunTimeSinceMove -= sunMoveTimeInterval;
             sunRotation = Vector3.Transform(sunRotation, Quaternion.CreateFromAxisAngle(Vector3.UnitY, sunRoatateDegrees));
-            chunkShading.SetDirectionalLight(sunRotation);
+            shader.Shading.SetDirectionalLight(sunRotation);
             foreach (Vector3 chunk in shader.chunkByPos.Keys)
-                chunkShading.DirectionalShadeChunk(chunk);
+                shader.Shading.DirectionalShadeChunk(chunk);
         }
     }
 }
