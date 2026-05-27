@@ -12,6 +12,7 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
 
     public Vector3D<int> WorldDimensionsInChunks { get; private set; }
     private Vector3D<int> worldOrigin;
+    public Vector3? DirectionalLightRotation { get; private set; }
 
     private readonly uint directionalComputeProgram;
     private readonly int bufferStartLocation;
@@ -70,6 +71,14 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
         shader.OutputErrors("Chunk Shading SetChunkMask");
     }
 
+    public void SetDirectionalLight(Vector3 direction) =>
+        DirectionalLightRotation = Vector3.Normalize(new
+        (
+            direction.X > -RayEpsilon && direction.X < RayEpsilon ? RayEpsilon : direction.X,
+            direction.Y > -RayEpsilon && direction.Y < RayEpsilon ? RayEpsilon : direction.Y,
+            direction.Z > -RayEpsilon && direction.Z < RayEpsilon ? RayEpsilon : direction.Z
+        ));
+
     private nint ChunkByteOffsetByPosition(Vector3D<int> pos)
     {
         pos -= worldOrigin;
@@ -88,19 +97,17 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
         float lightBase,
         float lightHit,
         float lightMiss,
-        Vector3 lightDirection,
         bool diffuseShading,
         float lightMin,
         float lightMax,
         int maxRaydistance
     )
     {
-        lightDirection = Vector3.Normalize(new
-        (
-            lightDirection.X > -RayEpsilon && lightDirection.X < RayEpsilon ? RayEpsilon : lightDirection.X,
-            lightDirection.Y > -RayEpsilon && lightDirection.Y < RayEpsilon ? RayEpsilon : lightDirection.Y,
-            lightDirection.Z > -RayEpsilon && lightDirection.Z < RayEpsilon ? RayEpsilon : lightDirection.Z
-        ));
+        if (DirectionalLightRotation == null)
+        {
+            Console.WriteLine("Directional light not assigned.");
+            return;
+        }
         GL.UseProgram(directionalComputeProgram);
         Shader.ChunkRenderingData chunkData = shader.chunkByPos[chunk];
         GL.Uniform1(bufferStartLocation, chunkData.RegionInstanceIndex);
@@ -111,7 +118,7 @@ public class ChunkShading<TChunkDims> where TChunkDims : IChunkDims
         GL.Uniform1(lightHitLocation, lightHit);
         GL.Uniform1(lightMissLocation, lightMiss);
         GL.Uniform1(diffuseShadingLocation, diffuseShading ? 1 : 0);
-        GL.Uniform3(lightDirectionLocation, lightDirection);
+        GL.Uniform3(lightDirectionLocation, DirectionalLightRotation.Value);
         GL.Uniform1(lightMinLocation, lightMin);
         GL.Uniform1(lightMaxLocation, lightMax);
         GL.Uniform1(chunkLengthLocation, TChunkDims.Length);

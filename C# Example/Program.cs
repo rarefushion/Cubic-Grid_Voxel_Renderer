@@ -290,11 +290,12 @@ static class Program
         // Assign Shading Masks
         foreach ((Vector3 chunkPos, uint[] mask) in lightMaskByPos)
             chunkShading.SetChunkMask(chunkPos.Floor(), mask);
+        chunkShading.SetDirectionalLight(sunRotation);
         // Render And Shade
         foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
         {
             shader.RenderChunk(chunkPos, blocks);
-            chunkShading.DirectionalShadeChunk(chunkPos, true, shadowIntensity, 1 - shadowIntensity, 0, sunRotation, true, shadowIntensity, 1, 1024);
+            chunkShading.DirectionalShadeChunk(chunkPos, true, shadowIntensity, 1 - shadowIntensity, 0, true, shadowIntensity, 1, 1024);
         }
         threadBatch.Dispose();
     }
@@ -307,8 +308,9 @@ static class Program
         {
             sunTimeSinceMove -= sunMoveTimeInterval;
             sunRotation = Vector3.Transform(sunRotation, Quaternion.CreateFromAxisAngle(Vector3.UnitY, sunRoatateDegrees));
+            chunkShading.SetDirectionalLight(sunRotation);
             foreach (Vector3 chunk in shader.chunkByPos.Keys)
-                chunkShading.DirectionalShadeChunk(chunk, true, shadowIntensity, 1 - shadowIntensity, 0, sunRotation, true, shadowIntensity, 1, 1024);
+                chunkShading.DirectionalShadeChunk(chunk, true, shadowIntensity, 1 - shadowIntensity, 0, true, shadowIntensity, 1, 1024);
         }
     }
 }
