@@ -8,7 +8,7 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 
 public class Shader
 {
-    public record ChunkRenderingData(Vector3 Position, FaceInstance[] Blocks, int RegionInstanceIndex, int RegionID);
+    public record ChunkRenderingData(Vector3 Position, CubeFaceInstance[] Blocks, int RegionInstanceIndex, int RegionID);
 
     public readonly Dictionary<Vector3, ChunkRenderingData> chunkByPos = [];
     public Dictionary<ushort, BlockRenderData> renderDataByBlock;
@@ -40,7 +40,7 @@ public class Shader
     /// <summary>Registers or replaces a chunk for rendering and assignes them to a VBO to render.</summary>
     /// <param name="position">The world-space position of the chunk.</param>
     /// <param name="blocks">The collection of block instances to render.</param>
-    public void RenderChunk(Vector3 position, FaceInstance[] blocks) =>
+    public void RenderChunk(Vector3 position, CubeFaceInstance[] blocks) =>
         NewChunk(position, blocks);
 
     /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
@@ -58,16 +58,16 @@ public class Shader
         OutputErrors("Voxel Mat DeactivateChunk");
     }
 
-    private unsafe void NewChunk(Vector3 position, FaceInstance[] blocks)
+    private unsafe void NewChunk(Vector3 position, CubeFaceInstance[] blocks)
     {
         GL.UseProgram(shaderProgram);
-        nuint size = (nuint)(blocks.Length * FaceInstance.MemorySize);
+        nuint size = (nuint)(blocks.Length * CubeFaceInstance.MemorySize);
         if (!regionByID[currentRegionID].CanFit(size))
             NewRegion();
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, regionByID[currentRegionID].Vbo);
         GL.BindVertexArray(regionByID[currentRegionID].Vao);
         int index = regionByID[currentRegionID].BytePointer;
-        ChunkRenderingData chunk = new(position, blocks, index / FaceInstance.MemorySize, currentRegionID);
+        ChunkRenderingData chunk = new(position, blocks, index / CubeFaceInstance.MemorySize, currentRegionID);
         fixed (void* buf = blocks.ToArray())
         {
             GL.BufferSubData(BufferTargetARB.ArrayBuffer, index, size, buf);
@@ -87,22 +87,22 @@ public class Shader
         regionByID.Add(++currentRegionID, new RegionBuffer(vbo, vao, bufferSize));
         GL.BindBuffer(BufferTargetARB.ArrayBuffer, vbo);
         GL.BindVertexArray(vao);
-        FaceInstance[] defaults = new FaceInstance[(int)Math.Ceiling((double)bufferSize / FaceInstance.MemorySize)];
+        CubeFaceInstance[] defaults = new CubeFaceInstance[(int)Math.Ceiling((double)bufferSize / CubeFaceInstance.MemorySize)];
         fixed (void* buf = defaults)
         {
-            GL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(defaults.Length * FaceInstance.MemorySize), buf, BufferUsageARB.DynamicDraw);
+            GL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(defaults.Length * CubeFaceInstance.MemorySize), buf, BufferUsageARB.DynamicDraw);
         }
         GL.EnableVertexAttribArray(0);
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, FaceInstance.MemorySize, (void*)0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, CubeFaceInstance.MemorySize, (void*)0);
         GL.VertexAttribDivisor(0, 1);
         GL.EnableVertexAttribArray(1);
-        GL.VertexAttribIPointer(1, 1, GLEnum.Int, FaceInstance.MemorySize, (void*)memBlockInstanceBlockOffset);
+        GL.VertexAttribIPointer(1, 1, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceBlockOffset);
         GL.VertexAttribDivisor(1, 1);
         GL.EnableVertexAttribArray(2);
-        GL.VertexAttribPointer(2, 1, GLEnum.Float, false, FaceInstance.MemorySize, (void*)memBlockInstanceBrightnessOffset);
+        GL.VertexAttribPointer(2, 1, GLEnum.Float, false, CubeFaceInstance.MemorySize, (void*)memBlockInstanceBrightnessOffset);
         GL.VertexAttribDivisor(2, 1);
         GL.EnableVertexAttribArray(3);
-        GL.VertexAttribIPointer(3, 3, GLEnum.Int, FaceInstance.MemorySize, (void*)memBlockInstanceFaceOffset);
+        GL.VertexAttribIPointer(3, 3, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceFaceOffset);
         GL.VertexAttribDivisor(3, 1);
         GL.BindVertexArray(0);
         OutputErrors("Voxel Mat Creating Region");
@@ -195,16 +195,16 @@ public class Shader
         int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
         if (vramBufferRegionSize > maxSSBOSize)
             throw new Exception($"vramBufferRegionSize size exceeds hardware's allowed size of {maxSSBOSize}");
-        int chunkVolumeSize = FaceInstance.MemorySize * chunkVolume;
+        int chunkVolumeSize = CubeFaceInstance.MemorySize * chunkVolume;
         if (vramBufferRegionSize < chunkVolumeSize)
             throw new Exception($"vramBufferRegionSize size less than a single chunk. Min {chunkVolumeSize}");
         int waste = vramBufferRegionSize % chunkVolumeSize;
         if (waste > 0)
             OutputLogs("Voxel Mat Instantiator", $"vramBufferRegionSize doesn't align with chunk size {chunkVolumeSize} and wastes {waste} bytes.");
         bufferSize = (uint)vramBufferRegionSize;
-        memBlockInstanceBlockOffset = Marshal.OffsetOf<FaceInstance>(nameof(FaceInstance.block));
-        memBlockInstanceBrightnessOffset = Marshal.OffsetOf<FaceInstance>(nameof(FaceInstance.brightness));
-        memBlockInstanceFaceOffset = Marshal.OffsetOf<FaceInstance>(nameof(FaceInstance.face));
+        memBlockInstanceBlockOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.block));
+        memBlockInstanceBrightnessOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.brightness));
+        memBlockInstanceFaceOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.face));
         currentRegionID = -1;
         NewRegion();
 

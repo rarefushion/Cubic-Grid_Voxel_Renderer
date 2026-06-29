@@ -120,7 +120,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
-            chunkLength * chunkLength * chunkLength * FaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
+            chunkLength * chunkLength * chunkLength * CubeFaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -246,7 +246,7 @@ static class Program
         // Cull and Shade faces
         taskIndex = 0;
         tasks = new Task[chunkByPos.Count];
-        ConcurrentDictionary<Vector3, FaceInstance[]> chunksToRender = [];
+        ConcurrentDictionary<Vector3, CubeFaceInstance[]> chunksToRender = [];
         foreach (KeyValuePair<Vector3, ushort[]> kvp in chunkByPos)
         tasks[taskIndex++] = threadBatch.EnqueueJob(() =>
         {
@@ -256,11 +256,11 @@ static class Program
             ushort[] negYChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[3] * chunkLength), out ushort[]? negYBlocks) ? negYBlocks : [];
             ushort[] negXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[4] * chunkLength), out ushort[]? negXBlocks) ? negXBlocks : [];
             ushort[] posXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[5] * chunkLength), out ushort[]? posXBlocks) ? posXBlocks : [];
-            FaceInstance[] toRender = BlockCulling.CullChunk(kvp.Value, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+            CubeFaceInstance[] toRender = BlockCulling.CullChunk(kvp.Value, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
             // Fake Shading. Assumes how the world was made to make these shadows.
             for (int i = 0; i < toRender.Length; i++)
             {
-                FaceInstance block = toRender[i];
+                CubeFaceInstance block = toRender[i];
                 Vector3 blockPos = toRender[i].position + kvp.Key;
                 bool transparent = BlockCulling.transparencyModeByBlock[(ushort)block.block] != BlockCulling.TransparencyMode.Opaque;
 
@@ -279,7 +279,7 @@ static class Program
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Render
-        foreach ((Vector3 chunkPos, FaceInstance[] blocks) in chunksToRender)
+        foreach ((Vector3 chunkPos, CubeFaceInstance[] blocks) in chunksToRender)
             shader.RenderChunk(chunkPos, blocks);
         threadBatch.Dispose();
     }

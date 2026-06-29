@@ -61,9 +61,9 @@ public static class BlockCulling
 
     /// <summary>Culls any blocks that isn't touching air. Chunk borders are assumed air. face lights default to 1.</summary>
     /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
-    public static FaceInstance[] CullSingleChunk(Span<ushort> blocks, int chunkLength)
+    public static CubeFaceInstance[] CullSingleChunk(Span<ushort> blocks, int chunkLength)
     {
-        List<FaceInstance> instances = [];
+        List<CubeFaceInstance> instances = [];
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
@@ -86,7 +86,7 @@ public static class BlockCulling
     /// <summary>Culls any blocks that isn't touching air.</summary>
     /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
     /// <remarks>Any neighbor chunks that are not the chunk volume size will be assumed air.</remarks>
-    public static FaceInstance[] CullChunk
+    public static CubeFaceInstance[] CullChunk
     (
         Span<ushort> blocks,
         int chunkLength,
@@ -98,7 +98,7 @@ public static class BlockCulling
         Span<ushort> posXChunk
     )
     {
-        List<FaceInstance> instances = [];
+        List<CubeFaceInstance> instances = [];
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
