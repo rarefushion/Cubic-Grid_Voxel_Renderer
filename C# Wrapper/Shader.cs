@@ -31,34 +31,10 @@ public class Shader
     private readonly Dictionary<int, RegionBuffer> regionByID = [];
     private int currentRegionID = 0;
 
-    /// <summary>Registers or replaces a full chunk for rendering, culls blocks, and assignes them to a VBO to render.</summary>
-    /// <param name="position">The world-space position of the chunk.</param>
-    /// <param name="blocks">The collection of block IDs comprising the entire chunk. With z > y > x index ordering.</param>
-    public void RenderChunk(Vector3 position, Span<ushort> blocks) =>
-        NewChunk(position, BlockCulling.CullSingleChunk(blocks, chunkLength));
-
     /// <summary>Registers or replaces a chunk for rendering and assignes them to a VBO to render.</summary>
     /// <param name="position">The world-space position of the chunk.</param>
     /// <param name="blocks">The collection of block instances to render.</param>
-    public void RenderChunk(Vector3 position, CubeFaceInstance[] blocks) =>
-        NewChunk(position, blocks);
-
-    /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
-    public unsafe void DeactivateChunk(Vector3 position)
-    {
-        if (!chunkByPos.Remove(position, out ChunkRenderingData? chunk))
-            return;
-        regionByID[chunk.RegionID].Chunks.Remove(position);
-        if (regionByID[chunk.RegionID].Chunks.Count == 0 && chunk.RegionID != currentRegionID)
-        {
-            GL.DeleteVertexArray(regionByID[chunk.RegionID].Vao);
-            GL.DeleteBuffer(regionByID[chunk.RegionID].Vbo);
-            regionByID.Remove(chunk.RegionID);
-        }
-        OutputErrors("Voxel Mat DeactivateChunk");
-    }
-
-    private unsafe void NewChunk(Vector3 position, CubeFaceInstance[] blocks)
+    public unsafe void RenderChunk(Vector3 position, CubeFaceInstance[] blocks)
     {
         GL.UseProgram(shaderProgram);
         nuint size = (nuint)(blocks.Length * CubeFaceInstance.MemorySize);
@@ -76,6 +52,21 @@ public class Shader
         regionByID[currentRegionID].Chunks.Add(position);
         chunkByPos[position] = chunk;
         OutputErrors("Voxel Mat Creating Chunk");
+    }
+
+    /// <summary>Deregisters a chunk for rendering, freeing it to be overwritten.</summary>
+    public unsafe void DeactivateChunk(Vector3 position)
+    {
+        if (!chunkByPos.Remove(position, out ChunkRenderingData? chunk))
+            return;
+        regionByID[chunk.RegionID].Chunks.Remove(position);
+        if (regionByID[chunk.RegionID].Chunks.Count == 0 && chunk.RegionID != currentRegionID)
+        {
+            GL.DeleteVertexArray(regionByID[chunk.RegionID].Vao);
+            GL.DeleteBuffer(regionByID[chunk.RegionID].Vbo);
+            regionByID.Remove(chunk.RegionID);
+        }
+        OutputErrors("Voxel Mat DeactivateChunk");
     }
 
     private unsafe void NewRegion()
