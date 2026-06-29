@@ -99,7 +99,7 @@ public class Shader
         GL.VertexAttribIPointer(1, 1, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceBlockOffset);
         GL.VertexAttribDivisor(1, 1);
         GL.EnableVertexAttribArray(2);
-        GL.VertexAttribIPointer(2, 3, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceFaceOffset);
+        GL.VertexAttribIPointer(2, 1, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceFaceOffset);
         GL.VertexAttribDivisor(2, 1);
         GL.EnableVertexAttribArray(3);
         GL.VertexAttribPointer(3, 3, GLEnum.Float, false, CubeFaceInstance.MemorySize, (void*)memBlockInstanceTintOffset);
