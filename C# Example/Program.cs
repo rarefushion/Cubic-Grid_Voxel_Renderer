@@ -254,44 +254,61 @@ static class Program
         foreach (KeyValuePair<Vector3, ushort[]> kvp in chunkByPos)
         tasks[taskIndex++] = threadBatch.EnqueueJob(() =>
         {
+            CullingHandler cullingHandler = new();
+            cullingHandler.chunkPosition = kvp.Key;
             ushort[] negZChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[0] * chunkLength), out ushort[]? negZBlocks) ? negZBlocks : [];
             ushort[] posZChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[1] * chunkLength), out ushort[]? posZBlocks) ? posZBlocks : [];
             ushort[] posYChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[2] * chunkLength), out ushort[]? posYBlocks) ? posYBlocks : [];
             ushort[] negYChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[3] * chunkLength), out ushort[]? negYBlocks) ? negYBlocks : [];
             ushort[] negXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[4] * chunkLength), out ushort[]? negXBlocks) ? negXBlocks : [];
             ushort[] posXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[5] * chunkLength), out ushort[]? posXBlocks) ? posXBlocks : [];
-            CubeFaceInstance[] toRender = BlockCulling.CullChunk(kvp.Value, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
-            // Fake Shading. Assumes how the world was made to make these shadows.
-            for (int i = 0; i < toRender.Length; i++)
-            {
-                CubeFaceInstance block = toRender[i];
-                Vector3 blockPos = toRender[i].position + kvp.Key;
-                if (block.block == 1 && (Direction)block.face == Direction.Top) // Only Grass Tops
-                {
-                    // Tint
-                    float noiseSample = (noise.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
-                    Vector3 finalBlockColor = Vector3.Lerp(color1, color2, noiseSample);
-                    block = new(block.position, block.block, finalBlockColor, block.face);
-                }
-                bool transparent = BlockCulling.transparencyModeByBlock[(ushort)block.block] != BlockCulling.TransparencyMode.Opaque;
-
-                if (blockPos.Y < -2)
-                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
-                else if (blockPos.Y <= 0 && blockPos.Z != 0 && Math.Abs(blockPos.X) % 10 > 5)
-                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
-                else if (blockPos.Y <= 0 && blockPos.X != 0 && Math.Abs(blockPos.Z) % 14 > 7)
-                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
-                else if ((Direction)block.face == Direction.Bottom && !transparent)
-                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
-                toRender[i] = block;
-            }
-            if (toRender.Length > 0)
-                chunksToRender.TryAdd(kvp.Key, toRender);
+            cullingHandler = BlockCulling.CullChunk(kvp.Value, cullingHandler, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+            if (cullingHandler.instances.Count > 0)
+                chunksToRender.TryAdd(kvp.Key, [.. cullingHandler.instances]);
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Render
         foreach ((Vector3 chunkPos, CubeFaceInstance[] blocks) in chunksToRender)
             shader.RenderChunk(chunkPos, blocks);
         threadBatch.Dispose();
+    }
+
+    public struct CullingHandler : IBlockCullingHandler
+    {
+        public Vector3 chunkPosition;
+
+        public List<CubeFaceInstance> instances;
+
+        static readonly FastNoiseLite noise = new();
+        static readonly Vector3 color1 = new(0.8f, 0.7f, 1.0f);
+        static readonly Vector3 color2 = new(0.0f, 1.0f, 1.0f);
+
+        public void CullBegan() => instances = [];
+
+        public readonly void FaceVisible(Vector3 localBlockPosition, ushort block, Direction faceNormal)
+        {
+            Vector3 blockPos = localBlockPosition + chunkPosition;
+            // Shading. Assumes how the world was made to make these shadows.
+            float shadow = 1;
+            bool transparent = BlockCulling.transparencyModeByBlock[block] != BlockCulling.TransparencyMode.Opaque;
+            if (blockPos.Y < -2)
+                shadow = shadowIntensity;
+            else if (blockPos.Y <= 0 && blockPos.Z != 0 && Math.Abs(blockPos.X) % 10 > 5)
+                shadow = shadowIntensity;
+            else if (blockPos.Y <= 0 && blockPos.X != 0 && Math.Abs(blockPos.Z) % 14 > 7)
+                shadow = shadowIntensity;
+            else if (faceNormal == Direction.Bottom && !transparent)
+                shadow = shadowIntensity;
+            // Tint
+            Vector3 tint = Vector3.One;
+            if (block == 1 && faceNormal == Direction.Top) // Only Grass Tops
+            {
+                // Tint
+                float noiseSample = (noise.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
+                tint = Vector3.Lerp(color1, color2, noiseSample);
+            }
+            // Finalize
+            instances.Add(new(localBlockPosition, block, tint * shadow, (int)faceNormal));
+        }
     }
 }

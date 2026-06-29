@@ -59,11 +59,13 @@ public static class BlockCulling
         ((pos.Z % chunkLength) + chunkLength) % chunkLength
     );
 
-    /// <summary>Culls any blocks that isn't touching air. Chunk borders are assumed air. face lights default to 1.</summary>
+    /// <summary>Culls any blocks that isn't touching air. Chunk borders are assumed air.</summary>
     /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
-    public static CubeFaceInstance[] CullSingleChunk(Span<ushort> blocks, int chunkLength)
+    /// <param name="handler">The handler invoked for every visible face. The mutated instance is returned.</param>
+    public static THandler CullSingleChunk<THandler>(Span<ushort> blocks, THandler handler, int chunkLength)
+    where THandler : struct, IBlockCullingHandler
     {
-        List<CubeFaceInstance> instances = [];
+        handler.CullBegan();
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
@@ -78,17 +80,19 @@ public static class BlockCulling
                     IsAir(pos + directions[d], blocks, chunkLength) ||
                     (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(pos + directions[d], blocks, chunkLength))
                 )
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], Vector3.One, d));
+                    handler.FaceVisible(pos, blocks[IndexByLocalPos(pos, chunkLength)], (Direction)d);
         }
-        return [.. instances];
+        return handler;
     }
 
     /// <summary>Culls any blocks that isn't touching air.</summary>
     /// <param name="blocks">The collection of block IDs comprising the chunk. With z > y > x index ordering.</param>
+    /// <param name="handler">The handler invoked for every visible face. The mutated instance is returned.</param>
     /// <remarks>Any neighbor chunks that are not the chunk volume size will be assumed air.</remarks>
-    public static CubeFaceInstance[] CullChunk
+    public static THandler CullChunk<THandler>
     (
         Span<ushort> blocks,
+        THandler handler,
         int chunkLength,
         Span<ushort> negZChunk,
         Span<ushort> posZChunk,
@@ -97,8 +101,9 @@ public static class BlockCulling
         Span<ushort> negXChunk,
         Span<ushort> posXChunk
     )
+    where THandler : struct, IBlockCullingHandler
     {
-        List<CubeFaceInstance> instances = [];
+        handler.CullBegan();
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
@@ -132,9 +137,9 @@ public static class BlockCulling
                     IsAir(blockChecking, chunkChecking, chunkLength) ||
                     (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(blockChecking, chunkChecking, chunkLength))
                 )
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], Vector3.One, d));
+                    handler.FaceVisible(pos, blocks[IndexByLocalPos(pos, chunkLength)], (Direction)d);
             }
         }
-        return [.. instances];
+        return handler;
     }
 }
