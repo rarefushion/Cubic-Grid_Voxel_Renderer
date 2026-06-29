@@ -67,7 +67,7 @@ static class Program
             // Air
             {0, new("Null", "Null", "Null", "Null", "Null", "Null")},
             // Grass
-            {1, new("Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side")},
+            {1, new("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side")},
             // Dirt
             {2, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},
             // Stone
@@ -77,7 +77,9 @@ static class Program
                 4, MSAATransparency
                     ? new("Glass_Shade", "Glass_Shade", "Glass_Shade", "Glass_Shade", "Glass_Shade", "Glass_Shade")
                     : new("Glass_Cutout", "Glass_Cutout", "Glass_Cutout", "Glass_Cutout", "Glass_Cutout", "Glass_Cutout")
-            }
+            },
+            // Grass Side Dirt, to bypass grass tinting
+            {5, new("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt")}
         };
         // Culling information for BlockCulling
         Dictionary<ushort, BlockCulling.TransparencyMode> transparancyByBlock = new()
@@ -95,7 +97,9 @@ static class Program
                 4, MSAATransparency
                     ? BlockCulling.TransparencyMode.RenderOnTransparent
                     : BlockCulling.TransparencyMode.CullOnTransparent
-            }
+            },
+            // Grass Side Dirt, to bypass grass tinting
+            {5, BlockCulling.TransparencyMode.Opaque}
         };
         foreach ((ushort block, BlockCulling.TransparencyMode mode) in transparancyByBlock)
             BlockCulling.transparencyModeByBlock.Add(block, mode);
@@ -301,11 +305,16 @@ static class Program
                 shadow = shadowIntensity;
             // Tint
             Vector3 tint = Vector3.One;
-            if (block == 1 && faceNormal == Direction.Top) // Only Grass Tops
+            if (block == 1 && faceNormal != Direction.Bottom) // Only Grass, not bottoms
             {
                 // Tint
                 float noiseSample = (noise.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
                 tint = Vector3.Lerp(color1, color2, noiseSample);
+                if (faceNormal != Direction.Top) // All sides
+                {
+                    // Create another face for the Grass Side Dirt with not tint.
+                    instances.Add(new(localBlockPosition, 5, Vector3.One * shadow, (int)faceNormal));
+                }
             }
             // Finalize
             instances.Add(new(localBlockPosition, block, tint * shadow, (int)faceNormal));
