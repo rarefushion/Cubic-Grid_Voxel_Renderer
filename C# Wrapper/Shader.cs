@@ -24,7 +24,7 @@ public class Shader
     private readonly uint tbo;
     private readonly uint bufferSize;
     private readonly nint memBlockInstanceBlockOffset;
-    private readonly nint memBlockInstanceBrightnessOffset;
+    private readonly nint memBlockInstanceTintOffset;
     private readonly nint memBlockInstanceFaceOffset;
 
     private readonly GL GL;
@@ -99,10 +99,10 @@ public class Shader
         GL.VertexAttribIPointer(1, 1, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceBlockOffset);
         GL.VertexAttribDivisor(1, 1);
         GL.EnableVertexAttribArray(2);
-        GL.VertexAttribPointer(2, 1, GLEnum.Float, false, CubeFaceInstance.MemorySize, (void*)memBlockInstanceBrightnessOffset);
+        GL.VertexAttribIPointer(2, 3, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceFaceOffset);
         GL.VertexAttribDivisor(2, 1);
         GL.EnableVertexAttribArray(3);
-        GL.VertexAttribIPointer(3, 3, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceFaceOffset);
+        GL.VertexAttribPointer(3, 3, GLEnum.Float, false, CubeFaceInstance.MemorySize, (void*)memBlockInstanceTintOffset);
         GL.VertexAttribDivisor(3, 1);
         GL.BindVertexArray(0);
         OutputErrors("Voxel Mat Creating Region");
@@ -203,7 +203,7 @@ public class Shader
             OutputLogs("Voxel Mat Instantiator", $"vramBufferRegionSize doesn't align with chunk size {chunkVolumeSize} and wastes {waste} bytes.");
         bufferSize = (uint)vramBufferRegionSize;
         memBlockInstanceBlockOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.block));
-        memBlockInstanceBrightnessOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.brightness));
+        memBlockInstanceTintOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.tint));
         memBlockInstanceFaceOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.face));
         currentRegionID = -1;
         NewRegion();

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Drawing;
 using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Renderer.NET;
@@ -243,7 +244,10 @@ static class Program
             chunkByPos.TryAdd((Vector3)chunkPos, blocks);
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
-        // Cull and Shade faces
+        // Cull, Shade and tint faces
+        FastNoiseLite noise = new();
+        Vector3 color1 = new(0.8f, 0.7f, 1.0f);
+        Vector3 color2 = new(0.0f, 1.0f, 1.0f);
         taskIndex = 0;
         tasks = new Task[chunkByPos.Count];
         ConcurrentDictionary<Vector3, CubeFaceInstance[]> chunksToRender = [];
@@ -262,16 +266,23 @@ static class Program
             {
                 CubeFaceInstance block = toRender[i];
                 Vector3 blockPos = toRender[i].position + kvp.Key;
+                if (block.block == 1 && (Direction)block.face == Direction.Top) // Only Grass Tops
+                {
+                    // Tint
+                    float noiseSample = (noise.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
+                    Vector3 finalBlockColor = Vector3.Lerp(color1, color2, noiseSample);
+                    block = new(block.position, block.block, finalBlockColor, block.face);
+                }
                 bool transparent = BlockCulling.transparencyModeByBlock[(ushort)block.block] != BlockCulling.TransparencyMode.Opaque;
 
                 if (blockPos.Y < -2)
-                    block = new(block.position, block.block, shadowIntensity, block.face);
+                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
                 else if (blockPos.Y <= 0 && blockPos.Z != 0 && Math.Abs(blockPos.X) % 10 > 5)
-                    block = new(block.position, block.block, shadowIntensity, block.face);
+                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
                 else if (blockPos.Y <= 0 && blockPos.X != 0 && Math.Abs(blockPos.Z) % 14 > 7)
-                    block = new(block.position, block.block, shadowIntensity, block.face);
+                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
                 else if ((Direction)block.face == Direction.Bottom && !transparent)
-                    block = new(block.position, block.block, shadowIntensity, block.face);
+                    block = new(block.position, block.block, block.tint * shadowIntensity, block.face);
                 toRender[i] = block;
             }
             if (toRender.Length > 0)

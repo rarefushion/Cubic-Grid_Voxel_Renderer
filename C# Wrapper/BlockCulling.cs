@@ -78,7 +78,7 @@ public static class BlockCulling
                     IsAir(pos + directions[d], blocks, chunkLength) ||
                     (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(pos + directions[d], blocks, chunkLength))
                 )
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], 1, d));
+                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], Vector3.One, d));
         }
         return [.. instances];
     }
@@ -132,7 +132,7 @@ public static class BlockCulling
                     IsAir(blockChecking, chunkChecking, chunkLength) ||
                     (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(blockChecking, chunkChecking, chunkLength))
                 )
-                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], 1, d));
+                    instances.Add(new(pos, blocks[IndexByLocalPos(pos, chunkLength)], Vector3.One, d));
             }
         }
         return [.. instances];
