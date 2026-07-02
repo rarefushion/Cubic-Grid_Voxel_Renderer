@@ -127,9 +127,10 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
-            chunkLength * chunkLength * chunkLength * CubeFaceInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
+            chunkLength * chunkLength * chunkLength * ShapeInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             camNearPlane,
             [.. textures.Select(t => t.Image)],
+            null,
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
@@ -255,7 +256,7 @@ static class Program
         Vector3 color2 = new(0.0f, 1.0f, 1.0f);
         taskIndex = 0;
         tasks = new Task[chunkByPos.Count];
-        ConcurrentDictionary<Vector3, CubeFaceInstance[]> chunksToRender = [];
+        ConcurrentDictionary<Vector3, ShapeInstance[]> chunksToRender = [];
         foreach (KeyValuePair<Vector3, ushort[]> kvp in chunkByPos)
         tasks[taskIndex++] = threadBatch.EnqueueJob(() =>
         {
@@ -273,7 +274,7 @@ static class Program
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Render
-        foreach ((Vector3 chunkPos, CubeFaceInstance[] blocks) in chunksToRender)
+        foreach ((Vector3 chunkPos, ShapeInstance[] blocks) in chunksToRender)
             shader.RenderChunk(chunkPos, blocks);
         threadBatch.Dispose();
     }
@@ -282,7 +283,7 @@ static class Program
     {
         public Vector3 chunkPosition;
 
-        public List<CubeFaceInstance> instances;
+        public List<ShapeInstance> instances;
 
         static readonly FastNoiseLite noise = new();
         static readonly Vector3 color1 = new(0.8f, 0.7f, 1.0f);

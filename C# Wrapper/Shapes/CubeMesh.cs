@@ -22,21 +22,23 @@ public static class CubeMesh
         new Vector2(1.0f, 1.0f)
     ];
 
-    /// <summary>Creates a cube out of triangles.</summary>
-    public static Vertex[] CreateShapeTris()
+    /// <summary>Creates all 6 faces to make a cube.</summary>
+    public static Shape[] CreateFaces()
     {
-        Vertex[] toReturn = new Vertex[36];
+        List<Shape> toReturn = [];
         for (int f = 0; f < 6; f++)
-        for (int t = 0; t < 6; t++)
         {
-            Vertex vert = new
-            (
-                vertices[quads[4 * f + quadsOffsetForTris[t]]],
-                uvOffsets[quadsOffsetForTris[t]],
-                f
-            );
-            toReturn[6 * f + t] = vert;
+            toReturn.Add(new Shape(new Vertex[6]));
+            for (int t = 0; t < 6; t++)
+            {
+                Vertex vert = new
+                (
+                    vertices[quads[4 * f + quadsOffsetForTris[t]]],
+                    uvOffsets[quadsOffsetForTris[t]]
+                );
+                toReturn[f].Vertices[t] = vert;
+            }
         }
-        return toReturn;
+        return [.. toReturn];
     }
 }
