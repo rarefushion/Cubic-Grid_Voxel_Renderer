@@ -11,7 +11,6 @@ public class Shader
     public record ChunkRenderingData(Vector3 Position, CubeFaceInstance[] Blocks, int RegionInstanceIndex, int RegionID);
 
     public readonly Dictionary<Vector3, ChunkRenderingData> chunkByPos = [];
-    public Dictionary<ushort, BlockRenderData> renderDataByBlock;
     public Action<string>? OutputLog;
     public Action<string>? OutputError;
     public uint shaderProgram;
@@ -23,7 +22,7 @@ public class Shader
     private readonly int chunkPosLocation;
     private readonly uint tbo;
     private readonly uint bufferSize;
-    private readonly nint memBlockInstanceBlockOffset;
+    private readonly nint memBlockInstanceTextureOffset;
     private readonly nint memBlockInstanceTintOffset;
     private readonly nint memBlockInstanceFaceOffset;
 
@@ -87,7 +86,7 @@ public class Shader
         GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, CubeFaceInstance.MemorySize, (void*)0);
         GL.VertexAttribDivisor(0, 1);
         GL.EnableVertexAttribArray(1);
-        GL.VertexAttribIPointer(1, 1, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceBlockOffset);
+        GL.VertexAttribIPointer(1, 1, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceTextureOffset);
         GL.VertexAttribDivisor(1, 1);
         GL.EnableVertexAttribArray(2);
         GL.VertexAttribIPointer(2, 1, GLEnum.Int, CubeFaceInstance.MemorySize, (void*)memBlockInstanceFaceOffset);
@@ -132,8 +131,7 @@ public class Shader
     /// <param name="chunkLength">The width/height/depth of a single chunk in blocks.</param>
     /// <param name="vramBufferRegionSize">Vram batch size in bytes to reserve.</param>
     /// <param name="cameraNearPlane">The distance to the camera's near clipping plane.</param>
-    /// <param name="renderDataByBlock">A dictionary linking block IDs to their specific <c>BlockRenderData</c>.</param>
-    /// <param name="imageByName">A dictionary containing the raw pixel data for each texture.</param>
+    /// <param name="imageByTextureID">A dictionary containing the raw pixel data for each texture.</param>
     /// <param name="errorAction">An optional delegate for handling error messages.</param>
     /// <param name="logAction">An optional delegate for handling shader compilation logs.</param>
     public unsafe Shader
@@ -143,14 +141,12 @@ public class Shader
         int chunkLength,
         int vramBufferRegionSize,
         float cameraNearPlane,
-        Dictionary<ushort, BlockRenderData> renderDataByBlock,
-        Dictionary<string, Image> imageByName,
+        Image[] imageByTextureID,
         Action<string>? errorAction = null,
         Action<string>? logAction = null
     )
     {
         GL = openGL;
-        this.renderDataByBlock = renderDataByBlock;
         OutputError = errorAction;
         OutputLog = logAction;
         //Create Shader
@@ -193,7 +189,7 @@ public class Shader
         if (waste > 0)
             OutputLogs("Voxel Mat Instantiator", $"vramBufferRegionSize doesn't align with chunk size {chunkVolumeSize} and wastes {waste} bytes.");
         bufferSize = (uint)vramBufferRegionSize;
-        memBlockInstanceBlockOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.block));
+        memBlockInstanceTextureOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.texture));
         memBlockInstanceTintOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.tint));
         memBlockInstanceFaceOffset = Marshal.OffsetOf<CubeFaceInstance>(nameof(CubeFaceInstance.face));
         currentRegionID = -1;
@@ -201,7 +197,7 @@ public class Shader
 
         // Textures
         uint maxX = 0, maxY = 0;
-        foreach (Image img in imageByName.Values)
+        foreach (Image img in imageByTextureID)
         {
             maxX = (uint)Math.Max(maxX, img.Width);
             maxY = (uint)Math.Max(maxY, img.Height);
@@ -209,57 +205,31 @@ public class Shader
         uint tbo;
         GL.GenTextures(1, &tbo);
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
-        GL.TexImage3D(GLEnum.Texture2DArray, 0, (int)GLEnum.Rgba, maxX, maxY, (uint)imageByName.Count, 0, GLEnum.Rgba, GLEnum.UnsignedByte, null);
+        GL.TexImage3D(GLEnum.Texture2DArray, 0, (int)GLEnum.Rgba, maxX, maxY, (uint)imageByTextureID.Length, 0, GLEnum.Rgba, GLEnum.UnsignedByte, null);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMinFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
-        int imgIndex = 0;
-        Dictionary<string, float> textureIndexByName = [];
-        foreach (KeyValuePair<string, Image> img in imageByName)
+        for (int i = 0; i < imageByTextureID.Length; i++)
         {
+            Image img = imageByTextureID[i];
             GL.TexSubImage3D
             (
                 GLEnum.Texture2DArray,
                 0,
                 0,
                 0,
-                imgIndex,
-                (uint)img.Value.Width,
-                (uint)img.Value.Height,
+                i,
+                (uint)img.Width,
+                (uint)img.Height,
                 1,
                 PixelFormat.Rgba,
                 PixelType.UnsignedByte,
-                img.Value.Pixels
+                img.Pixels
             );
-            textureIndexByName.Add(img.Key, imgIndex);
-            imgIndex++;
         }
         this.tbo = tbo;
         GL.Uniform1(GL.GetUniformLocation(shaderProgram, "textureArray"), 0);
-        List<float> textureIDs = [];
-        foreach (KeyValuePair<ushort, BlockRenderData> blockData in renderDataByBlock)
-        {
-            if (blockData.Key == 0)
-            {
-                for (int i = 0; i < 6; i++)
-                    textureIDs.Add(3f);
-                continue;
-            }
-            textureIDs.Add(textureIndexByName[blockData.Value.faceBack]);
-            textureIDs.Add(textureIndexByName[blockData.Value.faceFront]);
-            textureIDs.Add(textureIndexByName[blockData.Value.faceTop]);
-            textureIDs.Add(textureIndexByName[blockData.Value.faceBottom]);
-            textureIDs.Add(textureIndexByName[blockData.Value.faceLeft]);
-            textureIDs.Add(textureIndexByName[blockData.Value.faceRight]);
-        }
-        uint TextureIDShaderStorageBuffer = GL.GenBuffer();
-        GL.BindBuffer(BufferTargetARB.ShaderStorageBuffer, TextureIDShaderStorageBuffer);
-        fixed (float* buf = textureIDs.ToArray())
-        {
-            GL.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(textureIDs.Count * sizeof(float)), buf, BufferUsageARB.DynamicDraw);
-        }
-        GL.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 1, TextureIDShaderStorageBuffer);
         // Shapes
         Vertex[] block = CubeMesh.CreateShapeTris();
         uint shapesBuffer = GL.GenBuffer();

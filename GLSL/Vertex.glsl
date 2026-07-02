@@ -12,13 +12,12 @@ struct BlockVertex
 layout(binding=3) buffer BlockVertices { BlockVertex[] blockVertices; };
 
 layout(location=0) in vec3 aPos;
-layout(location=1) in int aBlock;
+layout(location=1) in int aTexture;
 layout(location=2) in int aFace;
 layout(location=3) in vec3 aTint;
 
-out flat int vBlock;
 out vec2 vUV;
-out flat int vFace;
+out flat int vTexture;
 out vec3 vTint;
 
 uniform vec3 chunkPos;
@@ -30,9 +29,8 @@ void main()
 {
     BlockVertex vert = blockVertices[gl_VertexID + aFace * 6];
 
-    vBlock = aBlock;
     vUV = vert.uv;
-    vFace = aFace;
+    vTexture = aTexture;
     vTint = aTint;
 
     gl_Position = projection * view * vec4(vert.position + chunkPos + aPos, 1.0);

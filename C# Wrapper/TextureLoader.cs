@@ -7,19 +7,21 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 public static class TextureLoader
 {
 
+    public record Texture(string Name, Image Image);
+
     /// <summary>Loads a collection of images from the specified file information array into a dictionary.</summary>
     /// <param name="images">An array of <see cref="FileInfo"/> objects representing the image files to load.</param>
     /// <param name="flip">Whether to flip the images during loading. Defaults to <c>true</c>.</param>
-    /// <returns>A dictionary where the key is the filename without extension and the value is the loaded <see cref="Image"/>.</returns>
-    public static Dictionary<string, Image> LoadImages(FileInfo[] images, bool flip = true)
+    /// <returns>An array of <see cref="Texture"/> records containing the file name and <see cref="Image"/>.</returns>
+    public static Texture[] LoadImages(FileInfo[] images, bool flip = true)
     {
-        Dictionary<string, Image> toReturn = [];
+        List<Texture> toReturn = [];
         foreach (FileInfo texture in images.OrderBy(di => di.Name))
         {
             Image image = LoadImage(texture, flip);
-            toReturn.Add(new(Path.GetFileNameWithoutExtension(texture.Name)), image);
+            toReturn.Add(new(Path.GetFileNameWithoutExtension(texture.Name), image));
         }
-        return toReturn;
+        return [.. toReturn];
     }
 
     /// <summary>Loads a single image from a file into unmanaged memory.</summary>
