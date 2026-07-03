@@ -77,7 +77,8 @@ static class Program
             cubeFaceRight  = (int)Direction.Right;
         int[] cubeFaceShapeIDs = [cubeFaceBack, cubeFaceFront, cubeFaceTop, cubeFaceBottom, cubeFaceLeft, cubeFaceRight];
         IShape cube = new Cube(cubeFaceShapeIDs);
-        Shape[] shapes = [.. cube.Create()];
+        IShape ramp = new Ramp(cubeFaceBack, 6, cubeFaceBottom, 7, 8);
+        Shape[] shapes = [.. cube.Create(), .. ramp.Create()];
         // Faces are named by the Assets/Textures file name.
         BlockRenderData.renderDataByBlock =
         [
@@ -94,7 +95,9 @@ static class Program
                 ? BRDFactory.CreateWithName("Glass_Shade", cube)
                 : BRDFactory.CreateWithName("Glass_Cutout", cube),
             // Grass Side Dirt, to bypass grass tinting, index 5
-            BRDFactory.CreateWithNames("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt", cube)
+            BRDFactory.CreateWithNames("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt", cube),
+            // Ramp, index 6
+            BRDFactory.CreateWithNames("Dirt", "Dirt", "Grass", "Dirt", "Dirt", "Dirt", ramp),
         ];
         // Culling information for BlockCulling
         Dictionary<ushort, BlockCulling.TransparencyMode> transparancyByBlock = new()
@@ -114,7 +117,9 @@ static class Program
                     : BlockCulling.TransparencyMode.CullOnTransparent
             },
             // Grass Side Dirt, to bypass grass tinting
-            {5, BlockCulling.TransparencyMode.Opaque}
+            {5, BlockCulling.TransparencyMode.Opaque},
+            // Ramp, index 6
+            {6, BlockCulling.TransparencyMode.RenderOnTransparent}
         };
         foreach ((ushort block, BlockCulling.TransparencyMode mode) in transparancyByBlock)
             BlockCulling.transparencyModeByBlock.Add(block, mode);
@@ -252,8 +257,8 @@ static class Program
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 == 0 && blockPos.X != 0) ? (ushort)4 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 == 0 && Math.Abs(blockPos.X) % 96 > 80 && blockPos.Z != 0) ? (ushort)4 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 == 80) ? (ushort)4 : blocks[i];
-                blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)1 : blocks[i];
-                blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)1 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && blockPos.Y > 0 && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)6 : blocks[i];
+                blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && blockPos.Y > 0 && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)6 : blocks[i];
                 if (blocks[i] != blocks[0])
                     allSame = false;
             }
@@ -349,9 +354,14 @@ static class Program
             float shadow = GetShadow(blockPos, block, faceNormal);
 
             Vector3 tint = Vector3.One;
-            if (block == 1 && faceNormal != Direction.Bottom) // Only Grass, not bottoms
+            bool doTint = false;
+            if (block == 1 && faceNormal != Direction.Bottom) // Grass, not bottoms
+                doTint = true;
+            if (block == 6 && faceNormal == Direction.Top) // Ramp Tops
+                doTint = true;
+
+            if (doTint)
             {
-                // Tint
                 float noiseSample = (noise.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
                 tint = Vector3.Lerp(color1, color2, noiseSample);
             }
