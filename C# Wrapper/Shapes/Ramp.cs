@@ -38,7 +38,7 @@ public class Ramp(int cubeBackFaceShapeID, int slopeID, int cubeBottomFaceShapeI
         return [ new Shape(slopeVerts), new Shape(leftTriangleVerts), new Shape(rightTriangleVerts) ];
     }
 
-    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible)
+    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible,  Direction up, int forward)
     {
         List<ShapeInstance> toReturn = [];
         bool drawSlope = false;
@@ -66,14 +66,16 @@ public class Ramp(int cubeBackFaceShapeID, int slopeID, int cubeBottomFaceShapeI
                     position,
                     renderData.GetTextureID(facesVisible[i]),
                     faceTints[i],
-                    facesVisible[i] == Direction.Back ? cubeBackFaceShapeID : cubeBottomFaceShapeID
+                    facesVisible[i] == Direction.Back ? cubeBackFaceShapeID : cubeBottomFaceShapeID,
+                    up,
+                    forward
                 ));
         }
         if (drawSlope)
         {
-            toReturn.Add(new(position, renderData.GetTextureID(Direction.Top), tints[0], slopeID));
-            toReturn.Add(new(position, renderData.GetTextureID(Direction.Left), tints[1], leftTriangleID));
-            toReturn.Add(new(position, renderData.GetTextureID(Direction.Right), tints[2], rightTriangleID));
+            toReturn.Add(new(position, renderData.GetTextureID(Direction.Top), tints[0], slopeID, up, forward));
+            toReturn.Add(new(position, renderData.GetTextureID(Direction.Left), tints[1], leftTriangleID, up, forward));
+            toReturn.Add(new(position, renderData.GetTextureID(Direction.Right), tints[2], rightTriangleID, up, forward));
         }
         return [.. toReturn];
     }

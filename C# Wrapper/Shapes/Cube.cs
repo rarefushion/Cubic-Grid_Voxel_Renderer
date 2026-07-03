@@ -7,11 +7,11 @@ public class Cube(int[] faceShapeIDs) : IShape
 {
     private readonly int[] shapeIDByFace = faceShapeIDs.Length == 6 ? faceShapeIDs : throw new Exception("Must be length of 6.");
 
-    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible)
+    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible,  Direction up, int forward)
     {
         ShapeInstance[] toReturn = new ShapeInstance[facesVisible.Count];
         for (int i = 0; i < facesVisible.Count; i++)
-            toReturn[i] = new(position, renderData.GetTextureID(facesVisible[i]), faceTints[i], shapeIDByFace[(int)facesVisible[i]]);
+            toReturn[i] = new(position, renderData.GetTextureID(facesVisible[i]), faceTints[i], shapeIDByFace[(int)facesVisible[i]], up, forward);
         return toReturn;
     }
 

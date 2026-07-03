@@ -38,8 +38,8 @@ public struct BlockRenderData(int faceBack, int faceFront, int faceTop, int face
         _ => throw new Exception($"Direction({face}) does not exist.")
     };
 
-    public readonly ShapeInstance[] Instance(Vector3 pos, List<Vector3> faceTints, List<Direction> facesVisible) =>
-        shape.Instance(pos, this, faceTints, facesVisible);
+    public readonly ShapeInstance[] Instance(Vector3 pos, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward) =>
+        shape.Instance(pos, this, faceTints, facesVisible, up, forward);
 
     /// <summary>Helps with converting texture names into <see cref="BlockRenderData"/>.</summary>
     public class Factory(IEnumerable<string> nameByID)

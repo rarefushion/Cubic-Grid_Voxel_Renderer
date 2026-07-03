@@ -37,7 +37,8 @@ static class Program
     {
         // Camera
         Vector3 camPosition = Vector3.One * 1.5f;
-        Vector2 camRotation = Vector2.Zero; // Pitch, Yaw
+        Vector2 camRotation = Vector2.UnitY * float.Pi; // Pitch, Yaw
+        // Vector2 camRotation = Vector2.Zero; // Pitch, Yaw
         float mouseSensitivity = 0.0025f;
         float camFov = MathF.PI * (120f / 360f);
         float camAspectRatio = (float)window.Size.X / window.Size.Y;
@@ -326,11 +327,25 @@ static class Program
                 {
                     float shadow = GetShadow(blockPos, block, facesVisible[i]);
                     BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[5];
-                    instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]]));
+                    instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0));
                 }
                 tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
             }
-            instances.AddRange(renderData.Instance(localBlockPosition, tintStorage, facesVisible));
+            // Rotation
+            Direction up = Direction.Top;
+            int forward = 0;
+            if (block == 6)
+            {
+                if (blockPos.Z == blockPos.Y)
+                    forward = 2;
+                else if (-blockPos.Z == blockPos.Y)
+                    forward = 0;
+                else if (blockPos.X == blockPos.Y)
+                    forward = 1;
+                else if (-blockPos.X == blockPos.Y)
+                    forward = 3;
+            }
+            instances.AddRange(renderData.Instance(localBlockPosition, tintStorage, facesVisible, up, forward));
         }
 
         private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)

@@ -26,6 +26,7 @@ public class Shader
     private readonly nint memShapeInstanceTextureOffset;
     private readonly nint memShapeInstanceTintOffset;
     private readonly nint memShapeInstanceShapeOffset;
+    private readonly nint memRotationInstanceShapeOffset;
 
     private readonly GL GL;
     private readonly Dictionary<int, RegionBuffer> regionByID = [];
@@ -90,11 +91,14 @@ public class Shader
         GL.VertexAttribIPointer(1, 1, GLEnum.Int, ShapeInstance.MemorySize, (void*)memShapeInstanceTextureOffset);
         GL.VertexAttribDivisor(1, 1);
         GL.EnableVertexAttribArray(2);
-        GL.VertexAttribIPointer(2, 1, GLEnum.Int, ShapeInstance.MemorySize, (void*)memShapeInstanceShapeOffset);
+        GL.VertexAttribIPointer(2, 1, GLEnum.UnsignedShort, ShapeInstance.MemorySize, (void*)memShapeInstanceShapeOffset);
         GL.VertexAttribDivisor(2, 1);
         GL.EnableVertexAttribArray(3);
-        GL.VertexAttribPointer(3, 3, GLEnum.Float, false, ShapeInstance.MemorySize, (void*)memShapeInstanceTintOffset);
+        GL.VertexAttribIPointer(3, 1, GLEnum.UnsignedShort, ShapeInstance.MemorySize, (void*)memRotationInstanceShapeOffset);
         GL.VertexAttribDivisor(3, 1);
+        GL.EnableVertexAttribArray(4);
+        GL.VertexAttribPointer(4, 3, GLEnum.Float, false, ShapeInstance.MemorySize, (void*)memShapeInstanceTintOffset);
+        GL.VertexAttribDivisor(4, 1);
         GL.BindVertexArray(0);
         OutputErrors("Voxel Mat Creating Region");
     }
@@ -198,6 +202,7 @@ public class Shader
         memShapeInstanceTextureOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.texture));
         memShapeInstanceTintOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.tint));
         memShapeInstanceShapeOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.shape));
+        memRotationInstanceShapeOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.rotation));
         currentRegionID = -1;
         NewRegion();
 
