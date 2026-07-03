@@ -35,23 +35,30 @@ public class Cube(int[] faceShapeIDs) : IShape
 
     public Shape[] Create() => CreateFaces();
 
+    /// <summary>Create any side of a cube.</summary>
+    /// <param name="face">The face to create.</param>
+    /// <returns>One face of a cube.</returns>
+    /// <remarks>If you aren't modifying this face for your shape consider reusing the face shapeID made from the cube.</remarks>
+    public static Shape CreateFace(Direction face)
+    {
+        Shape toReturn = new(new Vertex[6]);
+        for (int t = 0; t < 6; t++)
+        {
+            toReturn.Vertices[t] = new
+            (
+                vertices[quads[4 * (int)face + quadsOffsetForTris[t]]],
+                uvOffsets[quadsOffsetForTris[t]]
+            );
+        }
+        return toReturn;
+    }
+
     /// <summary>Creates all 6 faces to make a cube.</summary>
     public static Shape[] CreateFaces()
     {
-        List<Shape> toReturn = [];
-        for (int f = 0; f < 6; f++)
-        {
-            toReturn.Add(new Shape(new Vertex[6]));
-            for (int t = 0; t < 6; t++)
-            {
-                Vertex vert = new
-                (
-                    vertices[quads[4 * f + quadsOffsetForTris[t]]],
-                    uvOffsets[quadsOffsetForTris[t]]
-                );
-                toReturn[f].Vertices[t] = vert;
-            }
-        }
+        Shape[] toReturn = new Shape[6];
+        for (Direction f = 0; f < (Direction)6; f++)
+            toReturn[(int)f] = CreateFace(f);
         return [.. toReturn];
     }
 }
