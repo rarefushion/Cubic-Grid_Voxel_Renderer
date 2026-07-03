@@ -8,9 +8,9 @@ public interface IBlockCullingHandler
 {
     /// <summary>Called before <see cref="FaceVisible"/>.</summary>
     void CullBegan();
-    /// <summary>Called for every face that is visible.</summary>
+    /// <summary>Called if any face is visible of a shape had false value in <see cref="BlockCulling.isFullBlockByBlock"/>.</summary>
     /// <param name="localBlockPosition">The blocks position local to the chunk.</param>
     /// <param name="block">The block id.</param>
-    /// <param name="faceNormal">The faces normal direction aka the block side.</param>
-    void FaceVisible(Vector3 localBlockPosition, ushort block, Direction faceNormal);
+    /// <param name="facesVisible">All of the neighbor blocks that were transparent.</param>
+    void ShapeVisible(Vector3 localBlockPosition, ushort block, List<Direction> facesVisible);
 }

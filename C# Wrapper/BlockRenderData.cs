@@ -1,5 +1,7 @@
 using System.Collections.Frozen;
+using System.Numerics;
 using GalensUnified.CubicGrid.Core;
+using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 
 namespace GalensUnified.CubicGrid.Renderer.NET;
 
@@ -10,7 +12,8 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 /// <param name="faceBottom ">The texture ID for -Y face.</param>
 /// <param name="faceLeft   ">The texture ID for -X face.</param>
 /// <param name="faceRight  ">The texture ID for +X face.</param>
-public struct BlockRenderData(int faceBack, int faceFront, int faceTop, int faceBottom, int faceLeft, int faceRight)
+/// <param name="shape">The shape this block uses.</param>
+public struct BlockRenderData(int faceBack, int faceFront, int faceTop, int faceBottom, int faceLeft, int faceRight, IShape shape)
 {
     public int faceBack = faceBack;
     public int faceFront = faceFront;
@@ -18,22 +21,25 @@ public struct BlockRenderData(int faceBack, int faceFront, int faceTop, int face
     public int faceBottom = faceBottom;
     public int faceLeft = faceLeft;
     public int faceRight = faceRight;
+    public IShape shape = shape;
 
     /// <summary>Store your block render data here. Index is blockID.</summary>
     public static BlockRenderData[] renderDataByBlock = [];
 
     /// <summary>Fetch the texture ID by block and face.</summary>
-    /// <remarks>Requires <see cref="renderDataByBlock"/> to be set properly to work.</remarks>
-    public static int GetTextureID(int block, Direction face) => face switch
+    public readonly int GetTextureID(Direction face) => face switch
     {
-        Direction.Back   => renderDataByBlock[block].faceBack,
-        Direction.Front  => renderDataByBlock[block].faceFront,
-        Direction.Top    => renderDataByBlock[block].faceTop,
-        Direction.Bottom => renderDataByBlock[block].faceBottom,
-        Direction.Left   => renderDataByBlock[block].faceLeft,
-        Direction.Right  => renderDataByBlock[block].faceRight,
+        Direction.Back   => faceBack,
+        Direction.Front  => faceFront,
+        Direction.Top    => faceTop,
+        Direction.Bottom => faceBottom,
+        Direction.Left   => faceLeft,
+        Direction.Right  => faceRight,
         _ => throw new Exception($"Direction({face}) does not exist.")
     };
+
+    public readonly ShapeInstance[] Instance(Vector3 pos, List<Vector3> faceTints, List<Direction> facesVisible) =>
+        shape.Instance(pos, this, faceTints, facesVisible);
 
     /// <summary>Helps with converting texture names into <see cref="BlockRenderData"/>.</summary>
     public class Factory(IEnumerable<string> nameByID)
@@ -47,7 +53,8 @@ public struct BlockRenderData(int faceBack, int faceFront, int faceTop, int face
             string faceTop,
             string faceBottom,
             string faceLeft,
-            string faceRight
+            string faceRight,
+            IShape shape
         ) => new
         (
             textureIDByName[faceBack],
@@ -55,13 +62,14 @@ public struct BlockRenderData(int faceBack, int faceFront, int faceTop, int face
             textureIDByName[faceTop],
             textureIDByName[faceBottom],
             textureIDByName[faceLeft],
-            textureIDByName[faceRight]
+            textureIDByName[faceRight],
+            shape
         );
 
-        public BlockRenderData CreateWithName(string allFaces)
+        public BlockRenderData CreateWithName(string allFaces, IShape shape)
         {
             int id = textureIDByName[allFaces];
-            return new(id, id, id, id, id, id);
+            return new(id, id, id, id, id, id, shape);
         }
 
         public Factory(TextureLoader.Texture[] textureByID) : this(textureByID.Select(t => t.Name)) { }

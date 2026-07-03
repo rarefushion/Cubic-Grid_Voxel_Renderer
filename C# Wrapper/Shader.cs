@@ -147,7 +147,7 @@ public class Shader
         int vramBufferRegionSize,
         float cameraNearPlane,
         Image[] imageByTextureID,
-        Shape[]? shapeByShapeID = null,
+        Shape[] shapeByShapeID,
         Action<string>? errorAction = null,
         Action<string>? logAction = null
     )
@@ -237,7 +237,6 @@ public class Shader
         this.tbo = tbo;
         GL.Uniform1(GL.GetUniformLocation(shaderProgram, "textureArray"), 0);
         // Shapes
-        shapeByShapeID ??= [.. DefaultShapes.Create()];
         for (int s = 0; s < shapeByShapeID.Length; s++)
             if (shapeByShapeID[s].Vertices.Length > verticesPerShape)
                 verticesPerShape = (uint)shapeByShapeID[s].Vertices.Length;

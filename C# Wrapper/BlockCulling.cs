@@ -66,6 +66,7 @@ public static class BlockCulling
     where THandler : struct, IBlockCullingHandler
     {
         handler.CullBegan();
+        List<Direction> directionsVisible = [];
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
@@ -74,13 +75,17 @@ public static class BlockCulling
             if (IsAir(pos, blocks, chunkLength))
                 continue;
             TransparencyMode thisTransparent = transparencyModeByBlock[blocks[IndexByLocalPos(pos, chunkLength)]];
-            for (int d = 0; d < 6; d++)
+            directionsVisible.Clear();
+            for (Direction d = 0; d < (Direction)6; d++)
                 if
                 (
-                    IsAir(pos + directions[d], blocks, chunkLength) ||
-                    (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(pos + directions[d], blocks, chunkLength))
+                    IsAir(pos + directions[(int)d], blocks, chunkLength) ||
+                    (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(pos + directions[(int)d], blocks, chunkLength))
                 )
-                    handler.FaceVisible(pos, blocks[IndexByLocalPos(pos, chunkLength)], (Direction)d);
+                    directionsVisible.Add(d);
+            ushort block = blocks[IndexByLocalPos(pos, chunkLength)];
+            if (directionsVisible.Count > 0)
+                handler.ShapeVisible(pos, block, directionsVisible);
         }
         return handler;
     }
@@ -104,6 +109,7 @@ public static class BlockCulling
     where THandler : struct, IBlockCullingHandler
     {
         handler.CullBegan();
+        List<Direction> directionsVisible = [];
         for (int z = 0; z < chunkLength; z++)
         for (int y = 0; y < chunkLength; y++)
         for (int x = 0; x < chunkLength; x++)
@@ -112,16 +118,17 @@ public static class BlockCulling
             if (IsAir(pos, blocks, chunkLength))
                 continue;
             TransparencyMode thisTransparent = transparencyModeByBlock[blocks[IndexByLocalPos(pos, chunkLength)]];
-            for (int d = 0; d < 6; d++)
+            directionsVisible.Clear();
+            for (Direction d = 0; d < (Direction)6; d++)
             {
-                Vector3 blockChecking = pos + directions[d];
+                Vector3 blockChecking = pos + directions[(int)d];
                 Span<ushort> chunkChecking;
                 if (IsLocal(blockChecking, chunkLength))
                     chunkChecking = blocks;
                 else
                 {
                     blockChecking = LocalPosByGlobalPos(blockChecking, chunkLength);
-                    chunkChecking = d switch
+                    chunkChecking = (int)d switch
                     {
                         0 => negZChunk,
                         1 => posZChunk,
@@ -137,8 +144,11 @@ public static class BlockCulling
                     IsAir(blockChecking, chunkChecking, chunkLength) ||
                     (thisTransparent != TransparencyMode.CullOnTransparent && IsTransparent(blockChecking, chunkChecking, chunkLength))
                 )
-                    handler.FaceVisible(pos, blocks[IndexByLocalPos(pos, chunkLength)], (Direction)d);
+                    directionsVisible.Add(d);
             }
+            ushort block = blocks[IndexByLocalPos(pos, chunkLength)];
+            if (directionsVisible.Count > 0)
+                handler.ShapeVisible(pos, block, directionsVisible);
         }
         return handler;
     }

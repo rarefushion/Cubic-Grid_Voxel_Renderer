@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Renderer.NET;
+using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 using Microsoft.DotNet.PlatformAbstractions;
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -66,23 +67,34 @@ static class Program
         TextureLoader.Texture[] textures = TextureLoader.LoadImages(textureFiles);
         BlockRenderData.Factory BRDFactory = new(textures);
         // Create Blocks
+        // Shapes
+        const int
+            cubeFaceBack   = (int)Direction.Back,
+            cubeFaceFront  = (int)Direction.Front,
+            cubeFaceTop    = (int)Direction.Top,
+            cubeFaceBottom = (int)Direction.Bottom,
+            cubeFaceLeft   = (int)Direction.Left,
+            cubeFaceRight  = (int)Direction.Right;
+        int[] cubeFaceShapeIDs = [cubeFaceBack, cubeFaceFront, cubeFaceTop, cubeFaceBottom, cubeFaceLeft, cubeFaceRight];
+        IShape cube = new Cube(cubeFaceShapeIDs);
+        Shape[] shapes = [.. cube.Create()];
         // Faces are named by the Assets/Textures file name.
         BlockRenderData.renderDataByBlock =
         [
             // Air, index  0
-            new(0, 0, 0, 0, 0, 0),
+            new(0, 0, 0, 0, 0, 0, cube),
             // Grass, index 1
-            BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side"),
+            BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side", cube),
             // Dirt, index 2
-            BRDFactory.CreateWithName("Dirt"),
+            BRDFactory.CreateWithName("Dirt", cube),
             // Stone, index 3
-            BRDFactory.CreateWithName("Stone"),
+            BRDFactory.CreateWithName("Stone", cube),
             // Glass, index 4
             MSAATransparency
-                ? BRDFactory.CreateWithName("Glass_Shade")
-                : BRDFactory.CreateWithName("Glass_Cutout"),
+                ? BRDFactory.CreateWithName("Glass_Shade", cube)
+                : BRDFactory.CreateWithName("Glass_Cutout", cube),
             // Grass Side Dirt, to bypass grass tinting, index 5
-            BRDFactory.CreateWithNames("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt")
+            BRDFactory.CreateWithNames("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt", cube)
         ];
         // Culling information for BlockCulling
         Dictionary<ushort, BlockCulling.TransparencyMode> transparancyByBlock = new()
@@ -130,7 +142,7 @@ static class Program
             chunkLength * chunkLength * chunkLength * ShapeInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             camNearPlane,
             [.. textures.Select(t => t.Image)],
-            null,
+            shapes,
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
@@ -285,15 +297,39 @@ static class Program
 
         public List<ShapeInstance> instances;
 
+        private List<Vector3> tintStorage; // We don't want to allocate this for every shape
+
         static readonly FastNoiseLite noise = new();
         static readonly Vector3 color1 = new(0.8f, 0.7f, 1.0f);
         static readonly Vector3 color2 = new(0.0f, 1.0f, 1.0f);
 
-        public void CullBegan() => instances = [];
+        public void CullBegan()
+        {
+            instances = [];
+            tintStorage = [];
+        }
 
-        public readonly void FaceVisible(Vector3 localBlockPosition, ushort block, Direction faceNormal)
+        public readonly void ShapeVisible(Vector3 localBlockPosition, ushort block, List<Direction> facesVisible)
         {
             Vector3 blockPos = localBlockPosition + chunkPosition;
+            BlockRenderData renderData = BlockRenderData.renderDataByBlock[block];
+            tintStorage.Clear();
+            for (int i = 0; i < facesVisible.Count; i++)
+            {
+                // Grass sides needs another face for the dirt that doesn't get tinted.
+                if (block == 1 && facesVisible[i] is not (Direction.Top or Direction.Bottom))
+                {
+                    float shadow = GetShadow(blockPos, block, facesVisible[i]);
+                    BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[5];
+                    instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]]));
+                }
+                tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
+            }
+            instances.AddRange(renderData.Instance(localBlockPosition, tintStorage, facesVisible));
+        }
+
+        private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)
+        {
             // Shading. Assumes how the world was made to make these shadows.
             float shadow = 1;
             bool transparent = BlockCulling.transparencyModeByBlock[block] != BlockCulling.TransparencyMode.Opaque;
@@ -305,21 +341,21 @@ static class Program
                 shadow = shadowIntensity;
             else if (faceNormal == Direction.Bottom && !transparent)
                 shadow = shadowIntensity;
-            // Tint
+            return shadow;
+        }
+
+        private readonly Vector3 GetShadedTint(Vector3 blockPos, ushort block, Direction faceNormal)
+        {
+            float shadow = GetShadow(blockPos, block, faceNormal);
+
             Vector3 tint = Vector3.One;
             if (block == 1 && faceNormal != Direction.Bottom) // Only Grass, not bottoms
             {
                 // Tint
                 float noiseSample = (noise.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
                 tint = Vector3.Lerp(color1, color2, noiseSample);
-                if (faceNormal != Direction.Top) // All sides
-                {
-                    // Create another face for the Grass Side Dirt with not tint.
-                    instances.Add(new(localBlockPosition, BlockRenderData.GetTextureID(5, faceNormal), Vector3.One * shadow, (int)faceNormal));
-                }
             }
-            // Finalize
-            instances.Add(new(localBlockPosition, BlockRenderData.GetTextureID(block, faceNormal), tint * shadow, (int)faceNormal));
+            return tint * shadow;
         }
     }
 }

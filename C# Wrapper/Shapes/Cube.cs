@@ -1,9 +1,20 @@
 using System.Numerics;
+using GalensUnified.CubicGrid.Core;
 
-namespace GalensUnified.CubicGrid.Renderer.NET;
+namespace GalensUnified.CubicGrid.Renderer.NET.Shapes;
 
-public static class CubeMesh
+public class Cube(int[] faceShapeIDs) : IShape
 {
+    private readonly int[] shapeIDByFace = faceShapeIDs.Length == 6 ? faceShapeIDs : throw new Exception("Must be length of 6.");
+
+    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible)
+    {
+        ShapeInstance[] toReturn = new ShapeInstance[facesVisible.Count];
+        for (int i = 0; i < facesVisible.Count; i++)
+            toReturn[i] = new(position, renderData.GetTextureID(facesVisible[i]), faceTints[i], shapeIDByFace[(int)facesVisible[i]]);
+        return toReturn;
+    }
+
     /// <summary>When making a square out of triangles use this to index <see cref="quads"/> as the corner.</summary>
     public readonly static int[] quadsOffsetForTris = [0, 1, 2, 2, 1, 3];
     /// <summary>A 2D flattened array for indexing <see cref="vertices"/>. Index this at 4 * face + corner.</summary>
@@ -21,6 +32,8 @@ public static class CubeMesh
         new Vector2(1.0f, 0.0f),
         new Vector2(1.0f, 1.0f)
     ];
+
+    public Shape[] Create() => CreateFaces();
 
     /// <summary>Creates all 6 faces to make a cube.</summary>
     public static Shape[] CreateFaces()
