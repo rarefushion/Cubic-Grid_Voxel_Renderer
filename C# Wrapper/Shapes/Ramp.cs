@@ -6,13 +6,13 @@ using static GalensUnified.CubicGrid.Renderer.NET.Shapes.Cube;
 namespace GalensUnified.CubicGrid.Renderer.NET.Shapes;
 
 /// <remarks>Top texture is used, not front.</remarks>
-public class Ramp(int cubeBackFaceShapeID, int slopeID, int cubeBottomFaceShapeID, int leftTriangleID, int rightTriangleID) : IShape
+public class Ramp(int cubeBackFaceShapeID, int cubeBottomFaceShapeID) : IShape
 {
-    public readonly int slopeID = slopeID;
-    public readonly int leftTriangleID = leftTriangleID;
-    public readonly int rightTriangleID = rightTriangleID;
+    public int slopeID;
+    public int leftTriangleID;
+    public int rightTriangleID;
 
-    public Shape[] Create()
+    public Shape[] Create(int nextShapeID)
     {
         Vertex[] slopeVerts =
         [
@@ -23,18 +23,21 @@ public class Ramp(int cubeBackFaceShapeID, int slopeID, int cubeBottomFaceShapeI
             new(new(0.0f, 0.0f, 1.0f), uvOffsets[quadsOffsetForTris[4]]),
             new(new(1.0f, 0.0f, 1.0f), uvOffsets[quadsOffsetForTris[5]])
         ];
+        slopeID = nextShapeID;
         Vertex[] leftTriangleVerts =
         [
             new(new(0.0f, 0.0f, 1.0f), uvOffsets[quadsOffsetForTris[0]]),
             new(new(0.0f, 1.0f, 0.0f), uvOffsets[quadsOffsetForTris[1]]),
             new(new(0.0f, 0.0f, 0.0f), uvOffsets[quadsOffsetForTris[2]])
         ];
+        leftTriangleID = nextShapeID + 1;
         Vertex[] rightTriangleVerts =
         [
             new(new(1.0f, 0.0f, 0.0f), uvOffsets[quadsOffsetForTris[0]]),
             new(new(1.0f, 1.0f, 0.0f), uvOffsets[quadsOffsetForTris[1]]),
             new(new(1.0f, 0.0f, 1.0f), uvOffsets[quadsOffsetForTris[2]])
         ];
+        rightTriangleID = nextShapeID + 2;
         return [ new Shape(slopeVerts), new Shape(leftTriangleVerts), new Shape(rightTriangleVerts) ];
     }
 

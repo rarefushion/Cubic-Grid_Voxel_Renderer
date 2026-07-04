@@ -69,17 +69,11 @@ static class Program
         BlockRenderData.Factory BRDFactory = new(textures);
         // Create Blocks
         // Shapes
-        const int
-            cubeFaceBack   = (int)Direction.Back,
-            cubeFaceFront  = (int)Direction.Front,
-            cubeFaceTop    = (int)Direction.Top,
-            cubeFaceBottom = (int)Direction.Bottom,
-            cubeFaceLeft   = (int)Direction.Left,
-            cubeFaceRight  = (int)Direction.Right;
-        int[] cubeFaceShapeIDs = [cubeFaceBack, cubeFaceFront, cubeFaceTop, cubeFaceBottom, cubeFaceLeft, cubeFaceRight];
-        IShape cube = new Cube(cubeFaceShapeIDs);
-        IShape ramp = new Ramp(cubeFaceBack, 6, cubeFaceBottom, 7, 8);
-        Shape[] shapes = [.. cube.Create(), .. ramp.Create()];
+        List<Shape> shapes = [];
+        Cube cube = new();
+        shapes.AddRange(cube.Create(shapes.Count));
+        IShape ramp = new Ramp(cube.shapeIDByFace[(int)Direction.Back], cube.shapeIDByFace[(int)Direction.Bottom]);
+        shapes.AddRange(ramp.Create(shapes.Count));
         // Faces are named by the Assets/Textures file name.
         BlockRenderData.renderDataByBlock =
         [
@@ -141,14 +135,13 @@ static class Program
         // Ambiguous between mine and Silk.NET.OpenGL.Shader :sob:
         GalensUnified.CubicGrid.Renderer.NET.Shader shader = new
         (
-
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
             chunkLength * chunkLength * chunkLength * ShapeInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             camNearPlane,
             [.. textures.Select(t => t.Image)],
-            shapes,
+            [.. shapes],
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );

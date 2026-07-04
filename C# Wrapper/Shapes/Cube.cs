@@ -3,9 +3,9 @@ using GalensUnified.CubicGrid.Core;
 
 namespace GalensUnified.CubicGrid.Renderer.NET.Shapes;
 
-public class Cube(int[] faceShapeIDs) : IShape
+public class Cube() : IShape
 {
-    private readonly int[] shapeIDByFace = faceShapeIDs.Length == 6 ? faceShapeIDs : throw new Exception("Must be length of 6.");
+    public readonly int[] shapeIDByFace = new int[6];
 
     public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible,  Direction up, int forward)
     {
@@ -33,7 +33,12 @@ public class Cube(int[] faceShapeIDs) : IShape
         new Vector2(1.0f, 1.0f)
     ];
 
-    public Shape[] Create() => CreateFaces();
+    public Shape[] Create(int nextShapeID)
+    {
+        for (int i = 0; i < 6; i++)
+            shapeIDByFace[i] = nextShapeID + i;
+        return CreateFaces();
+    }
 
     /// <summary>Create any side of a cube.</summary>
     /// <param name="face">The face to create.</param>
