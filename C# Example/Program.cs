@@ -78,7 +78,7 @@ static class Program
         BlockRenderData.renderDataByBlock =
         [
             // Air, index  0
-            new(0, 0, 0, 0, 0, 0, cube),
+            default,
             // Grass, index 1
             BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side", cube),
             // Dirt, index 2
@@ -320,7 +320,7 @@ static class Program
                 {
                     float shadow = GetShadow(blockPos, block, facesVisible[i]);
                     BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[5];
-                    instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0));
+                    instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [facesVisible[i]], Direction.Top, 0));
                 }
                 tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
             }
@@ -338,7 +338,7 @@ static class Program
                 else if (-blockPos.X == blockPos.Y)
                     forward = 3;
             }
-            instances.AddRange(renderData.Instance(localBlockPosition, tintStorage, facesVisible, up, forward));
+            instances.AddRange(renderData.InstanceMixTints(localBlockPosition, tintStorage, facesVisible, up, forward));
         }
 
         private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)
