@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using GalensUnified.Graphics;
 using Silk.NET.GLFW;
 using Silk.NET.OpenGL;
 
@@ -161,26 +162,10 @@ public class Shader
         OutputLog = logAction;
         //Create Shader
         string vertexShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "Vertex.glsl"));
-        uint vertexShader = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(vertexShader, vertexShaderCode);
-        GL.CompileShader(vertexShader);
+        Shaders.ShaderScript Vertex = new(vertexShaderCode, ShaderType.VertexShader);
         string fragmentShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "Fragment.glsl"));
-        uint fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
-        GL.ShaderSource(fragmentShader, fragmentShaderCode);
-        GL.CompileShader(fragmentShader);
-        shaderProgram = GL.CreateProgram();
-        GL.AttachShader(shaderProgram, vertexShader);
-        GL.AttachShader(shaderProgram, fragmentShader);
-        GL.LinkProgram(shaderProgram);
-        // Verify
-        GL.GetProgram(shaderProgram, GLEnum.LinkStatus, out int success);
-        if (success == 0)
-            OutputError?.Invoke("Program link failed: " + GL.GetProgramInfoLog(shaderProgram));
-        // Clean up
-        GL.DetachShader(shaderProgram, vertexShader);
-        GL.DetachShader(shaderProgram, fragmentShader);
-        GL.DeleteShader(vertexShader);
-        GL.DeleteShader(fragmentShader);
+        Shaders.ShaderScript Fragment = new(fragmentShaderCode, ShaderType.FragmentShader);
+        shaderProgram = Shaders.CreateShaderProgram(GL, [Vertex, Fragment]);
         GL.UseProgram(shaderProgram);
         // Assing shader variables
         projectionLocation = GL.GetUniformLocation(shaderProgram, "projection");
