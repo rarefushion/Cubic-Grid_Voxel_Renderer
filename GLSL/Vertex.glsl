@@ -4,6 +4,7 @@
 #elif defined(GL_EXT_shader_explicit_arithmetic_types_int16)
     #extension GL_EXT_shader_explicit_arithmetic_types_int16 : enable
 #endif
+#extension GL_ARB_shader_draw_parameters : require
 
 struct ShapeVertex
 {
@@ -16,11 +17,16 @@ struct ShapeVertex
 
 layout(binding=3) buffer ShapeVertices { ShapeVertex[] shapeVertices; };
 
-layout(location=0) in vec3 aPos;
-layout(location=1) in int aTexture;
-layout(location=2) in uint16_t aShape;
-layout(location=3) in uint16_t aRotation;
-layout(location=4) in vec3 aTint;
+struct ShapeInstance
+{
+    float posX, posY, posZ;
+    int texture;
+    uint16_t shape;
+    uint16_t rotation;
+    float tintR, tintG, tintB;
+};
+
+layout(binding=0) buffer ShapeInstances { ShapeInstance[] shapeInstances; };
 
 out vec2 vUV;
 out flat int vTexture;
@@ -69,12 +75,14 @@ const mat3 ROTATION[24] = mat3[24]
 
 void main()
 {
-    ShapeVertex vert = shapeVertices[gl_VertexID + int(aShape) * verticesPerShape];
+    ShapeInstance instance = shapeInstances[gl_BaseInstanceARB + gl_InstanceID];
+    ShapeVertex vert = shapeVertices[gl_VertexID + int(instance.shape) * verticesPerShape];
 
     vUV = vert.uv;
-    vTexture = aTexture;
-    vTint = aTint;
+    vTexture = instance.texture;
+    vTint = vec3(instance.tintR, instance.tintG, instance.tintB);
 
-    vec3 rotatedVert = ROTATION[int(aRotation)] * (vert.position - 0.5) + 0.5;
-    gl_Position = projection * view * vec4(rotatedVert + chunkPos + aPos, 1.0);
+    vec3 rotatedVert = ROTATION[int(instance.rotation)] * (vert.position - 0.5) + 0.5;
+    vec3 instancePos = vec3(instance.posX, instance.posY, instance.posZ);
+    gl_Position = projection * view * vec4(rotatedVert + chunkPos + instancePos, 1.0);
 }

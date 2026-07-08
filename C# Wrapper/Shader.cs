@@ -2,6 +2,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using GalensUnified.Graphics;
+using GalensUnified.Graphics.Buffers;
 using Silk.NET.GLFW;
 using Silk.NET.OpenGL;
 
@@ -22,6 +23,7 @@ public class Shader
     private readonly int projectionLocation;
     private readonly int viewLocation;
     private readonly int chunkPosLocation;
+    private readonly uint vao;
     private readonly uint tbo;
     private readonly uint bufferSize;
     private readonly nint memShapeInstanceTextureOffset;
@@ -42,14 +44,9 @@ public class Shader
         nuint size = (nuint)(shapes.Length * ShapeInstance.MemorySize);
         if (!regionByID[currentRegionID].CanFit(size))
             NewRegion();
-        GL.BindBuffer(BufferTargetARB.ArrayBuffer, regionByID[currentRegionID].Vbo);
-        GL.BindVertexArray(regionByID[currentRegionID].Vao);
         int index = regionByID[currentRegionID].BytePointer;
+        regionByID[currentRegionID].SSBO.SetSubData(shapes, index, true);
         ChunkRenderingData chunk = new(position, shapes, index / ShapeInstance.MemorySize, currentRegionID);
-        fixed (void* buf = shapes.ToArray())
-        {
-            GL.BufferSubData(BufferTargetARB.ArrayBuffer, index, size, buf);
-        }
         regionByID[currentRegionID].BytePointer += (int)size;
         regionByID[currentRegionID].Chunks.Add(position);
         chunkByPos[position] = chunk;
@@ -64,8 +61,7 @@ public class Shader
         regionByID[chunk.RegionID].Chunks.Remove(position);
         if (regionByID[chunk.RegionID].Chunks.Count == 0 && chunk.RegionID != currentRegionID)
         {
-            GL.DeleteVertexArray(regionByID[chunk.RegionID].Vao);
-            GL.DeleteBuffer(regionByID[chunk.RegionID].Vbo);
+            GL.DeleteBuffer(regionByID[chunk.RegionID].SSBO.Handle);
             regionByID.Remove(chunk.RegionID);
         }
         OutputErrors("Voxel Mat DeactivateChunk");
@@ -73,34 +69,8 @@ public class Shader
 
     private unsafe void NewRegion()
     {
-        uint vbo;
-        uint vao;
-        GL.GenBuffers(1, out vbo);
-        vao = GL.GenVertexArray();
-        regionByID.Add(++currentRegionID, new RegionBuffer(vbo, vao, bufferSize));
-        GL.BindBuffer(BufferTargetARB.ArrayBuffer, vbo);
-        GL.BindVertexArray(vao);
-        ShapeInstance[] defaults = new ShapeInstance[(int)Math.Ceiling((double)bufferSize / ShapeInstance.MemorySize)];
-        fixed (void* buf = defaults)
-        {
-            GL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(defaults.Length * ShapeInstance.MemorySize), buf, BufferUsageARB.DynamicDraw);
-        }
-        GL.EnableVertexAttribArray(0);
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, ShapeInstance.MemorySize, (void*)0);
-        GL.VertexAttribDivisor(0, 1);
-        GL.EnableVertexAttribArray(1);
-        GL.VertexAttribIPointer(1, 1, GLEnum.Int, ShapeInstance.MemorySize, (void*)memShapeInstanceTextureOffset);
-        GL.VertexAttribDivisor(1, 1);
-        GL.EnableVertexAttribArray(2);
-        GL.VertexAttribIPointer(2, 1, GLEnum.UnsignedShort, ShapeInstance.MemorySize, (void*)memShapeInstanceShapeOffset);
-        GL.VertexAttribDivisor(2, 1);
-        GL.EnableVertexAttribArray(3);
-        GL.VertexAttribIPointer(3, 1, GLEnum.UnsignedShort, ShapeInstance.MemorySize, (void*)memRotationInstanceShapeOffset);
-        GL.VertexAttribDivisor(3, 1);
-        GL.EnableVertexAttribArray(4);
-        GL.VertexAttribPointer(4, 3, GLEnum.Float, false, ShapeInstance.MemorySize, (void*)memShapeInstanceTintOffset);
-        GL.VertexAttribDivisor(4, 1);
-        GL.BindVertexArray(0);
+        ShaderStorageBufferObject<ShapeInstance> SSBO = new(GL, BufferUsageARB.DynamicDraw, 0, bufferSize);
+        regionByID.Add(++currentRegionID, new RegionBuffer(SSBO, bufferSize));
         OutputErrors("Voxel Mat Creating Region");
     }
 
@@ -115,11 +85,12 @@ public class Shader
         GL.UniformMatrix4(viewLocation, 1, false, (float*)&viewMatrix);
         MatrixPlanes.Plane[] planes = MatrixPlanes.ViewFrustum(viewMatrix, projectionMatrix);
 
+        GL.BindVertexArray(vao);
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
         foreach (RegionBuffer region in regionByID.Values)
         {
-            GL.BindVertexArray(region.Vao);
-            GL.BindBuffer(BufferTargetARB.ArrayBuffer, region.Vbo);
+            region.SSBO.BindBase();
+            OutputErrors("Voxel Mat Bind");
             foreach (ChunkRenderingData chunk in region.Chunks.Select(p => chunkByPos[p]))
             {
                 if (!MatrixPlanes.IsBoxInFrustum(planes, chunk.Position, chunk.Position + Vector3.One * chunkLength))
@@ -127,6 +98,7 @@ public class Shader
                 GL.Uniform3(chunkPosLocation, chunk.Position);
                 GL.DrawArraysInstancedBaseInstance(PrimitiveType.Triangles, 0, verticesPerShape, (uint)chunk.Shapes.Length, (uint)chunk.RegionInstanceIndex);
             }
+            OutputErrors("Voxel Mat Chunks");
         }
         OutputErrors("Voxel Mat Render");
     }
@@ -190,6 +162,7 @@ public class Shader
         memRotationInstanceShapeOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.rotation));
         currentRegionID = -1;
         NewRegion();
+        vao = GL.GenVertexArray();
 
         // Textures
         uint maxX = 0, maxY = 0;
@@ -268,10 +241,9 @@ public class Shader
     }
 
 
-    private class RegionBuffer(uint Vbo, uint Vao, uint BufferSize)
+    private class RegionBuffer(ShaderStorageBufferObject<ShapeInstance> SSBO, uint BufferSize)
     {
-        public readonly uint Vbo = Vbo;
-        public readonly uint Vao = Vao;
+        public readonly ShaderStorageBufferObject<ShapeInstance> SSBO = SSBO;
         public int BytePointer = 0;
         public readonly HashSet<Vector3> Chunks = [];
 
