@@ -1,3 +1,6 @@
 [submodule "Cubic-Grid_Voxel_Core"]
 	path = Cubic-Grid_Voxel_Core
 	url = https://github.com/rarefushion/Cubic-Grid_Voxel_Core.git
+[submodule "GalensGL"]
+	path = GalensGL
+	url = https://github.com/rarefushion/GalensGL.git
