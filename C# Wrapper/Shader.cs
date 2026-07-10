@@ -11,6 +11,12 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 public class Shader
 {
     public record ChunkRenderingData(Vector3 Position, ShapeInstance[] Shapes, int RegionInstanceIndex, int RegionID);
+    /// <summary>Provides the <see cref="ShapeInstance"/> buffer that can be filled.</summary>
+    /// <param name="SSBO">The buffer to fill.</param>
+    /// <param name="ByteOffset">The byte index to start at.</param>
+    /// <param name="RegionID">An internal reference only used by <see cref="Shader"/>.</param>
+    /// <remarks>Must use <paramref name="ByteOffset"/> or chunks will be overwritten. Max fill range is chunk volume.</remarks>
+    public record BufferRental(ShaderStorageBufferObject<ShapeInstance> SSBO, int ByteOffset, int RegionID);
 
     public readonly Dictionary<Vector3, ChunkRenderingData> chunkByPos = [];
     public Action<string>? OutputLog;
@@ -65,6 +71,30 @@ public class Shader
             regionByID.Remove(chunk.RegionID);
         }
         OutputErrors("Voxel Mat DeactivateChunk");
+    }
+
+    /// <summary>Get a buffer to fill with <see cref="ShapeInstance"/>.</summary>
+    /// <remarks>When finished call <see cref="ReturnRental"/>. Must limit <see cref="ShapeInstance"/>s added to chunk volume</remarks>
+    public BufferRental RentBuffer()
+    {
+        nuint size = (nuint)(chunkVolume * ShapeInstance.MemorySize);
+        if (!regionByID[currentRegionID].CanFit(size))
+            NewRegion();
+        return new(regionByID[currentRegionID].SSBO, regionByID[currentRegionID].BytePointer, currentRegionID);
+    }
+
+    /// <summary>Signal you're finished with a <see cref="BufferRental"/>.</summary>
+    /// <param name="fillableBuffer">The <see cref="BufferRental"/> previously obtained.</param>
+    /// <param name="bytesWritten">The bytes used. Not including <see cref="BufferRental.ByteOffset"/>.</param>
+    /// <param name="chunkPosition">The chunk position just created.</param>
+    public void ReturnRental(BufferRental fillableBuffer, int bytesWritten, Vector3 chunkPosition)
+    {
+        int count = bytesWritten / ShapeInstance.MemorySize;
+        ShapeInstance[] fakeShapes = new ShapeInstance[count];
+        ChunkRenderingData chunk = new(chunkPosition, fakeShapes, fillableBuffer.ByteOffset / ShapeInstance.MemorySize, fillableBuffer.RegionID);
+        regionByID[fillableBuffer.RegionID].BytePointer += bytesWritten;
+        regionByID[fillableBuffer.RegionID].Chunks.Add(chunkPosition);
+        chunkByPos[chunkPosition] = chunk;
     }
 
     private unsafe void NewRegion()
