@@ -95,6 +95,7 @@ public class Shader
         regionByID[fillableBuffer.RegionID].BytePointer += bytesWritten;
         regionByID[fillableBuffer.RegionID].Chunks.Add(chunkPosition);
         chunkByPos[chunkPosition] = chunk;
+        OutputErrors("Voxel Mat ReturnRental");
     }
 
     private unsafe void NewRegion()
