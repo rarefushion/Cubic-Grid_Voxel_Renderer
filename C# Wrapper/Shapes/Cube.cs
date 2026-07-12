@@ -66,4 +66,14 @@ public class Cube() : IShape
             toReturn[(int)f] = CreateFace(f);
         return [.. toReturn];
     }
+
+    public Model[] GetModels(BlockRenderData renderData)
+    {
+        return[new
+        (
+            renderData.faceBack, renderData.faceFront, renderData.faceTop, renderData.faceBottom, renderData.faceLeft, renderData.faceRight,
+            shapeIDByFace[0], shapeIDByFace[1], shapeIDByFace[2], shapeIDByFace[3], shapeIDByFace[4], shapeIDByFace[5],
+            false, false, false, false, false, false
+        )];
+    }
 }

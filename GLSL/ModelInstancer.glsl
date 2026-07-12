@@ -7,10 +7,11 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-struct BlockRenderData
+struct RenderData
 {
-    int textureBack, textureFront, textureTop, textureBottom, textureLeft, textureRight;
-    int shape;
+    int[6] textureIDs;
+    int[6] shapeIDs;
+    bool[6] anyFaceVisible;
 };
 
 struct ShapeInstance
@@ -22,7 +23,7 @@ struct ShapeInstance
     float tintR, tintG, tintB;
 };
 
-layout(binding=4) buffer BlockRenderDatas { BlockRenderData[] renderDatas; };
+layout(binding=4) buffer BlockRenderDatas { RenderData[] renderDatas; };
 layout(binding=0) buffer ShapeInstances { ShapeInstance[] shapeInstances; };
 layout(binding=1) buffer FlattenedChunks { uint16_t[] flattenedChunks; };
 layout(binding=5) uniform atomic_uint shapeCount;
@@ -81,28 +82,35 @@ void main()
     uint16_t block = flattenedChunks[chunkIndex + index];
     if (block == 0us)
         return;
-    BlockRenderData blockData = renderDatas[int(block)];
-    int textures[6] = int[6]
-    (
-        blockData.textureBack, blockData.textureFront, blockData.textureTop,
-        blockData.textureBottom, blockData.textureLeft, blockData.textureRight
-    );
+    RenderData blockData = renderDatas[int(block)];
     ivec3 blockPos = ivec3(chunkPos) + ivec3(x, y, z);
 
+    uint16_t neighborBlocks[6] = uint16_t[6](0us);
+    bool visibleFaces[6] = bool[6](false);
+    bool anyVisible = false;
     for (int f = 0; f < 6; f++)
     {
+        if (blockData.shapeIDs[f] == 0)
+            continue;
         ivec3 testPos = ClusterLocalPos(blockPos + directions[f]);
         int testChunkIndex = IndexByChunkCoord(ChunkCoord(testPos));
         int testBlockIndex = ChunkIndex(testPos);
-        uint16_t testBlock = flattenedChunks[testChunkIndex + testBlockIndex];
-        if (testBlock != 0us)
+        neighborBlocks[f] = flattenedChunks[testChunkIndex + testBlockIndex];
+        if (neighborBlocks[f] != 0us)
+            continue;
+        visibleFaces[f] = true;
+        anyVisible = true;
+    }
+    for (int f = 0; f < 6; f++)
+    {
+        if (!visibleFaces[f] && !(blockData.anyFaceVisible[f] && anyVisible))
             continue;
         uint instancesIndex = atomicCounterIncrement(shapeCount) + instanceOffset;
         shapeInstances[instancesIndex] = ShapeInstance
         (
             float(x), float(y), float(z),
-            textures[f],
-            uint16_t(blockData.shape + f),
+            blockData.textureIDs[f],
+            uint16_t(blockData.shapeIDs[f]),
             2us * 4us + 0us, // up, forward
             1.0, 1.0, 1.0 
         );

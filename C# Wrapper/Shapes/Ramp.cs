@@ -82,4 +82,14 @@ public class Ramp(int cubeBackFaceShapeID, int cubeBottomFaceShapeID) : IShape
         }
         return [.. toReturn];
     }
+
+    public Model[] GetModels(BlockRenderData renderData)
+    {
+        return[new
+        (
+            renderData.faceBack, renderData.faceFront, renderData.faceTop, renderData.faceBottom, renderData.faceLeft, renderData.faceRight,
+            cubeBackFaceShapeID, 0, slopeID, cubeBottomFaceShapeID, leftTriangleID, rightTriangleID,
+            false, false, true, false, false, false
+        )];
+    }
 }

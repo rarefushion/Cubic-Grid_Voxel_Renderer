@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.Graphics;
@@ -19,7 +20,7 @@ where TChunkDims : IChunkDims
     private readonly uint shapeCountID;
 
     private readonly GL GL;
-    private readonly ShaderStorageBufferObject<InstancerRenderData> renderDataBuf;
+    private readonly ShaderStorageBufferObject<Model> renderDataBuf;
     private readonly GPUChunkCluster<TChunkDims> chunkCluster;
     private readonly Shader shader;
 
@@ -53,7 +54,14 @@ where TChunkDims : IChunkDims
             throw new Exception($"OpenGL Error: {err}");
     }
 
-    public ModelInstancer(GL GL, string GLSLScriptsPath, GPUChunkCluster<TChunkDims> chunkCluster, Shader shader)
+    public ModelInstancer
+    (
+        GL GL,
+        string GLSLScriptsPath,
+        GPUChunkCluster<TChunkDims> chunkCluster,
+        Shader shader,
+        Model[] renderDatas
+    )
     {
         this.GL = GL;
         this.chunkCluster = chunkCluster;
@@ -76,27 +84,11 @@ where TChunkDims : IChunkDims
         GL.Uniform1(GL.GetUniformLocation(computeShader, "clusterChunkLength"), chunkCluster.clusterChunkLength);
         GL.Uniform1(GL.GetUniformLocation(computeShader, "clusterChunkHeight"), chunkCluster.clusterChunkHeight);
 
-        InstancerRenderData[] datas = [.. BlockRenderData.renderDataByBlock.Select((d, i) => new InstancerRenderData
-        (
-            d.faceBack,
-            d.faceFront,
-            d.faceTop,
-            d.faceBottom,
-            d.faceLeft,
-            d.faceRight,
-            0
-        ))];
-        renderDataBuf = new(GL, BufferUsageARB.StaticRead, 4, datas);
+        renderDataBuf = new(GL, BufferUsageARB.StaticRead, 4, [.. renderDatas]);
 
         shapeCountID = GL.GenBuffer();
         GL.BindBuffer(BufferTargetARB.AtomicCounterBuffer, shapeCountID);
         uint shapeCount = 0;
         GL.BufferData(BufferTargetARB.AtomicCounterBuffer, sizeof(uint), ref shapeCount, BufferUsageARB.DynamicCopy);
-    }
-
-    public readonly struct InstancerRenderData(int faceBack, int faceFront, int faceTop, int faceBottom, int faceLeft, int faceRight, int shape)
-    {
-        readonly int faceBack = faceBack, faceFront = faceFront, faceTop = faceTop, faceBottom = faceBottom, faceLeft = faceLeft, faceRight = faceRight;
-        readonly int shape = shape;
     }
 }
