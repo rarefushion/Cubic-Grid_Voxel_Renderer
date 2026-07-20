@@ -75,10 +75,10 @@ public class Shader
     }
 
     /// <summary>Executes the rendering pass for all registered chunks that pass the occlusion test.</summary>
-    /// <param name="projectionMatrix">The current perspective projection matrix.</param>
-    /// <param name="viewMatrix">The current camera view matrix.</param>
-    public unsafe void Render(Matrix4x4 projectionMatrix, Matrix4x4 viewMatrix)
+    public unsafe void Render(ICamera cam)
     {
+        Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(cam.Position, cam.EurlerAngles.X, cam.EurlerAngles.Y, cam.EurlerAngles.Z);
+        Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(cam.Fov, cam.AspectRatio, cam.NearPlane, cam.FarPlane);
         // Render
         GL.UseProgram(shaderProgram);
         GL.UniformMatrix4(projectionLocation, 1, false, (float*)&projectionMatrix);

@@ -155,11 +155,7 @@ static class Program
         worldPosition.Y += chunkLength * 2;
         CreateWorld(shader, worldPosition, chunkLength, worldLength);
 
-        window.Render += dt => shader.Render
-        (
-            CameraMatrices.CreateProjectionMatrix(cam.Fov, cam.AspectRatio, cam.NearPlane, cam.FarPlane),
-            CameraMatrices.CreateViewMatrix(cam.Position, cam.EurlerAngles.X, cam.EurlerAngles.Y, 0)
-        );
+        window.Render += dt => shader.Render(cam);
     }
 
     /// <summary>Calculates the camera rotation delta every frame.</summary>
