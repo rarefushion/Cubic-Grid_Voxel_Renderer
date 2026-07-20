@@ -46,6 +46,7 @@ static class Program
             0.1f,
             2000f
         );
+        window.Resize += size => cam.AspectRatio = (float)size.X / size.Y;
 
         // Inputs
         IInputContext input = window.CreateInput();
