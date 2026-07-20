@@ -77,7 +77,7 @@ public class Shader
     /// <summary>Executes the rendering pass for all registered chunks that pass the occlusion test.</summary>
     public unsafe void Render(ICamera cam)
     {
-        Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(cam.Position, cam.EurlerAngles.X, cam.EurlerAngles.Y, cam.EurlerAngles.Z);
+        Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(Vector3.Zero, cam.EurlerAngles.X, cam.EurlerAngles.Y, cam.EurlerAngles.Z);
         Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(cam.Fov, cam.AspectRatio, cam.NearPlane, cam.FarPlane);
         // Render
         GL.UseProgram(shaderProgram);
@@ -93,16 +93,16 @@ public class Shader
             OutputErrors("Voxel Mat Bind");
             foreach (ChunkRenderingData chunk in region.Chunks.Select(p => chunkByPos[p]))
             {
-                if (!MatrixPlanes.IsBoxInFrustum(planes, chunk.Position, chunk.Position + Vector3.One * chunkLength))
+                Vector3 offsetPos = chunk.Position - cam.Position;
+                if (!MatrixPlanes.IsBoxInFrustum(planes, offsetPos, offsetPos + Vector3.One * chunkLength))
                     continue;
-                GL.Uniform3(chunkPosLocation, chunk.Position);
+                GL.Uniform3(chunkPosLocation, offsetPos);
                 GL.DrawArraysInstancedBaseInstance(PrimitiveType.Triangles, 0, verticesPerShape, (uint)chunk.Shapes.Length, (uint)chunk.RegionInstanceIndex);
             }
             OutputErrors("Voxel Mat Chunks");
         }
         OutputErrors("Voxel Mat Render");
     }
-
     /// <summary>Initializes the voxel engine by compiling shaders, allocating GPU buffers, and building the texture array.</summary>
     /// <param name="openGL">The GL interface for executing commands.</param>
     /// <param name="GLSLScriptsPath">The directory path containing the .glsl shader files.</param>
