@@ -140,11 +140,11 @@ public class Shader
         shaderProgram = Shaders.CreateShaderProgram(GL, [Vertex, Fragment]);
         GL.UseProgram(shaderProgram);
         // Assing shader variables
-        projectionLocation = GL.GetUniformLocation(shaderProgram, "projection");
-        viewLocation = GL.GetUniformLocation(shaderProgram, "view");
+        projectionLocation = GL.GetUniformLocation(shaderProgram, "Uniforms.projection");
+        viewLocation = GL.GetUniformLocation(shaderProgram, "Uniforms.view");
         this.chunkLength = chunkLength;
         chunkVolume = chunkLength * chunkLength * chunkLength;
-        chunkPosLocation = GL.GetUniformLocation(shaderProgram, "chunkPos");
+        chunkPosLocation = GL.GetUniformLocation(shaderProgram, "Uniforms.chunkPos");
         // Region Buffers
         int maxSSBOSize = GL.GetInteger(GLEnum.MaxShaderStorageBlockSize);
         if (vramBufferRegionSize > maxSSBOSize)
@@ -203,7 +203,7 @@ public class Shader
         for (int s = 0; s < shapeByShapeID.Length; s++)
             if (shapeByShapeID[s].Vertices.Length > verticesPerShape)
                 verticesPerShape = (uint)shapeByShapeID[s].Vertices.Length;
-        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "verticesPerShape"), (int)verticesPerShape);
+        GL.Uniform1(GL.GetUniformLocation(shaderProgram, "Uniforms.verticesPerShape"), (int)verticesPerShape);
         Vertex[] condensedShapes = new Vertex[shapeByShapeID.Length * verticesPerShape];
         for (int s = 0; s < shapeByShapeID.Length; s++)
         for (int v = 0; v < verticesPerShape; v++)

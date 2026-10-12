@@ -139,7 +139,7 @@ static class Program
         GalensUnified.CubicGrid.Renderer.NET.Shader shader = new
         (
             graphics,
-            Path.Combine(assets.FullName, "GLSL"),
+            Path.Combine(assets.FullName, "GLSL SpriV Translation"),
             chunkLength,
             chunkLength * chunkLength * chunkLength * ShapeInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
             cam.NearPlane,
