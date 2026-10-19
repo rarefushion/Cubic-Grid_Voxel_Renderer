@@ -15,6 +15,7 @@ dxc -spirv \
     -enable-16bit-types \
     -T vs_6_8 \
     -E VSMain \
+    -I HLSL \
     -fspv-target-env=universal1.5 \
     HLSL/Vertex.hlsl \
     -Fo "$PRECROSS/Vertex.spv"
@@ -22,6 +23,7 @@ dxc -spirv \
     -enable-16bit-types \
     -T ps_6_8 \
     -E PSMain \
+    -I HLSL \
     -fspv-target-env=universal1.5 \
     HLSL/Fragment.hlsl \
     -Fo "$PRECROSS/Fragment.spv"
