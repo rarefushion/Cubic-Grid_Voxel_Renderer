@@ -57,3 +57,20 @@ struct ShapeVaryings
     nointerpolation int textureIndex : TEXCOORD1;
     float3 tint : TEXCOORD2;
 };
+
+float4 WorldPositionToClip(float3 worldPosition);
+
+ShapeVaryings CreateShapeVaryings(ShapeInstance instance, ShapeVertex vert, float3 chunkPosition)
+{
+    float3 rotatedVert = mul(vert.position - 0.5, ROTATION[int(instance.rotation)]) + 0.5;
+    float3 instancePos = float3(instance.posX, instance.posY, instance.posZ);
+    float3 worldPos = rotatedVert + chunkPosition + instancePos;
+
+    ShapeVaryings output;
+    output.UV = vert.uv;
+    output.textureIndex = instance.textureIndex;
+    output.tint = float3(instance.tintR, instance.tintG, instance.tintB);
+    output.position = WorldPositionToClip(worldPos);
+
+    return output;
+}
