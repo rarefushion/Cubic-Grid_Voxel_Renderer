@@ -19,8 +19,10 @@ public readonly struct ShapeInstance(Vector3 position, int texture, Vector3 tint
     public readonly Vector3 position = position;
     [FieldOffset(12)]
     public readonly int texture = texture;
+    // in shader code this ushort(2 bytes) shape is the first half of the uint(4 bytes) shapeRotation
     [FieldOffset(16)]
     public readonly ushort shape = (ushort)shape;
+    // in shader code this ushort(2 bytes) rotation is the second half of the uint(4 bytes) shapeRotation
     [FieldOffset(18)]
     public readonly ushort rotation = (ushort)((int)up * 4 + forward);
     [FieldOffset(20)]

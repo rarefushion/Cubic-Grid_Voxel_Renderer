@@ -18,6 +18,6 @@ float4 WorldPositionToClip(float3 worldPosition) { return mul(mul(float4(worldPo
 ShapeVaryings VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 {
     ShapeInstance instance = ShapeInstances[instanceID];
-    ShapeVertex vert = ShapeVertices[vertexID + int(instance.shape) * verticesPerShape];
+    ShapeVertex vert = ShapeVertices[vertexID + ShapeIndex(instance) * verticesPerShape];
     return CreateShapeVaryings(instance, vert, chunkPos);
 }

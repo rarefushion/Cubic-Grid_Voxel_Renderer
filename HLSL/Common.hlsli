@@ -45,8 +45,7 @@ struct ShapeInstance
 {
     float posX, posY, posZ;
     int textureIndex;
-    uint16_t shape;
-    uint16_t rotation;
+    uint shapeRotation;
     float tintR, tintG, tintB;
 };
 
@@ -59,10 +58,12 @@ struct ShapeVaryings
 };
 
 float4 WorldPositionToClip(float3 worldPosition);
+uint ShapeIndex(ShapeInstance instance) { return instance.shapeRotation & 0xFFFFu; }
+uint ShapeRotation(ShapeInstance instance) { return instance.shapeRotation >> 16; }
 
 ShapeVaryings CreateShapeVaryings(ShapeInstance instance, ShapeVertex vert, float3 chunkPosition)
 {
-    float3 rotatedVert = mul(vert.position - 0.5, ROTATION[int(instance.rotation)]) + 0.5;
+    float3 rotatedVert = mul(vert.position - 0.5, ROTATION[ShapeRotation(instance)]) + 0.5;
     float3 instancePos = float3(instance.posX, instance.posY, instance.posZ);
     float3 worldPos = rotatedVert + chunkPosition + instancePos;
 
