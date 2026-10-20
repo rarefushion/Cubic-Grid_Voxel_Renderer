@@ -1,5 +1,5 @@
 #include "Common.hlsli"
-// WorldPositionToClip must be defined after including Common.hlsli
+// WorldPositionToClip must be defined after including Common.hlsli when using CreateShapeVaryings.
 
 cbuffer Uniforms : register(b0)
 {

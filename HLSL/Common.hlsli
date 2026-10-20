@@ -48,6 +48,8 @@ struct ShapeInstance
     uint shapeRotation;
     float tintR, tintG, tintB;
 };
+uint ShapeIndex(ShapeInstance instance) { return instance.shapeRotation & 0xFFFFu; }
+uint ShapeRotation(ShapeInstance instance) { return instance.shapeRotation >> 16; }
 
 struct ShapeVaryings
 {
@@ -57,9 +59,8 @@ struct ShapeVaryings
     float3 tint : TEXCOORD2;
 };
 
+// This function prototype must be defined if using CreateShapeVaryings.
 float4 WorldPositionToClip(float3 worldPosition);
-uint ShapeIndex(ShapeInstance instance) { return instance.shapeRotation & 0xFFFFu; }
-uint ShapeRotation(ShapeInstance instance) { return instance.shapeRotation >> 16; }
 
 ShapeVaryings CreateShapeVaryings(ShapeInstance instance, ShapeVertex vert, float3 chunkPosition)
 {
@@ -74,4 +75,15 @@ ShapeVaryings CreateShapeVaryings(ShapeInstance instance, ShapeVertex vert, floa
     output.position = WorldPositionToClip(worldPos);
 
     return output;
+}
+
+// This function prototype must be defined if using ShapeShade.
+float4 Texture2DArraySample(float3 textureSample);
+
+float4 ShapeShade(ShapeVaryings input)
+{
+    float4 texel = Texture2DArraySample(float3(input.UV, float(input.textureIndex)));
+    if (texel.a < 0.01)
+        discard;
+    return float4(texel.rgb * input.tint, texel.a);
 }
