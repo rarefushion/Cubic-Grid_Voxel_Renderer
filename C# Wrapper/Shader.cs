@@ -133,7 +133,7 @@ public class Shader
         OutputError = errorAction;
         OutputLog = logAction;
         //Create Shader
-        string vertexShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "Vertex.glsl"));
+        string vertexShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "ShapeVertex.glsl"));
         Shaders.ShaderScript Vertex = new(vertexShaderCode, ShaderType.VertexShader);
         string fragmentShaderCode = File.ReadAllText(Path.Combine(GLSLScriptsPath, "Fragment.glsl"));
         Shaders.ShaderScript Fragment = new(fragmentShaderCode, ShaderType.FragmentShader);

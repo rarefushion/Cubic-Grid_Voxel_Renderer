@@ -17,8 +17,8 @@ dxc -spirv \
     -E VSMain \
     -I HLSL \
     -fspv-target-env=universal1.5 \
-    HLSL/Vertex.hlsl \
-    -Fo "$PRECROSS/Vertex.spv"
+    HLSL/ShapeVertex.hlsl \
+    -Fo "$PRECROSS/ShapeVertex.spv"
 dxc -spirv \
     -enable-16bit-types \
     -T ps_6_8 \
@@ -28,10 +28,10 @@ dxc -spirv \
     HLSL/Fragment.hlsl \
     -Fo "$PRECROSS/Fragment.spv"
 spirv-cross --glsl-emit-ubo-as-plain-uniforms \
-    "$PRECROSS/Vertex.spv" --output "$CROSS/Vertex.glsl"
+    "$PRECROSS/ShapeVertex.spv" --output "$CROSS/ShapeVertex.glsl"
 spirv-cross --glsl-emit-ubo-as-plain-uniforms \
     "$PRECROSS/Fragment.spv" --output "$CROSS/Fragment.glsl"
 
-rm "$PRECROSS/Vertex.spv" "$PRECROSS/Fragment.spv"
+rm "$PRECROSS/ShapeVertex.spv" "$PRECROSS/Fragment.spv"
 rm -d "$PRECROSS"
 echo "HLSL shaders compiled to generic GLSL in '$CROSS'."
