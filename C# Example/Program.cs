@@ -135,8 +135,7 @@ static class Program
         window.Resize += size => graphics.Viewport(0, 0, (uint)window.FramebufferSize.X, (uint)window.FramebufferSize.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         int chunkLength = 16;
-        // Ambiguous between mine and Silk.NET.OpenGL.Shader :sob:
-        GalensUnified.CubicGrid.Renderer.NET.Shader shader = new
+        ShapeShader shapeShader = new
         (
             graphics,
             Path.Combine(assets.FullName, "GLSL SpriV Translation"),
@@ -153,9 +152,9 @@ static class Program
         int worldLength = worldLengthInChunks * chunkLength;
         Vector3D<int> worldPosition = -Vector3D<int>.One * worldLength / 2;
         worldPosition.Y += chunkLength * 2;
-        CreateWorld(shader, worldPosition, chunkLength, worldLength);
+        CreateWorld(shapeShader, worldPosition, chunkLength, worldLength);
 
-        window.Render += dt => shader.Render(cam);
+        window.Render += dt => shapeShader.Render(cam);
     }
 
     /// <summary>Calculates the camera rotation delta every frame.</summary>
@@ -208,7 +207,7 @@ static class Program
     }
 
     /// <summary>Loops through all chunks and their blocks to create the world.</summary>
-    static void CreateWorld(GalensUnified.CubicGrid.Renderer.NET.Shader shader, Vector3D<int> worldPosition, int chunkLength, int worldLength)
+    static void CreateWorld(ShapeShader shapeShader, Vector3D<int> worldPosition, int chunkLength, int worldLength)
     {
         // Spin up threads
         ThreadBatch threadBatch = new(Environment.ProcessorCount);
@@ -285,7 +284,7 @@ static class Program
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Render
         foreach ((Vector3 chunkPos, ShapeInstance[] blocks) in chunksToRender)
-            shader.RenderChunk(chunkPos, blocks);
+            shapeShader.RenderChunk(chunkPos, blocks);
         threadBatch.Dispose();
     }
 

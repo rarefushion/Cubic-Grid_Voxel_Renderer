@@ -8,7 +8,7 @@ using Silk.NET.OpenGL;
 
 namespace GalensUnified.CubicGrid.Renderer.NET;
 
-public class Shader
+public class ShapeShader
 {
     public record ChunkRenderingData(Vector3 Position, ShapeInstance[] Shapes, int RegionInstanceIndex, int RegionID);
 
@@ -116,7 +116,7 @@ public class Shader
     /// </param>
     /// <param name="errorAction">An optional delegate for handling error messages.</param>
     /// <param name="logAction">An optional delegate for handling shader compilation logs.</param>
-    public unsafe Shader
+    public unsafe ShapeShader
     (
         GL openGL,
         string GLSLScriptsPath,
