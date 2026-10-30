@@ -6,6 +6,9 @@ struct ShapeVaryings
     float3 tint : TEXCOORD2;
 };
 
+// This function prototype must be defined if using CreateShapeVaryings in ShapeCommon.hlsli or GridAlignedQuadCommon.hlsli.
+float4 WorldPositionToClip(float3 worldPosition);
+
 // This function prototype must be defined if using ShapeShade.
 float4 Texture2DArraySample(float3 textureSample);
 

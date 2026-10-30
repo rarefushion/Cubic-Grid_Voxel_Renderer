@@ -1,4 +1,5 @@
 #include "Common.hlsli"
+// WorldPositionToClip must be defined after including Common.hlsli when using CreateShapeVaryings.
 
 static const float3x3 ROTATION[24] =
 {
@@ -53,9 +54,7 @@ struct ShapeInstance
 uint ShapeIndex(ShapeInstance instance) { return instance.shapeRotation & 0xFFFFu; }
 uint ShapeRotation(ShapeInstance instance) { return instance.shapeRotation >> 16; }
 
-// This function prototype must be defined if using CreateShapeVaryings.
-float4 WorldPositionToClip(float3 worldPosition);
-
+// The WorldPositionToClip function prototype in Common.hlsli must be defined if using CreateShapeVaryings.
 ShapeVaryings CreateShapeVaryings(ShapeInstance instance, ShapeVertex vert, float3 chunkPosition)
 {
     float3 rotatedVert = mul(vert.position - 0.5, ROTATION[ShapeRotation(instance)]) + 0.5;
