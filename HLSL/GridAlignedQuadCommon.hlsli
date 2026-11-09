@@ -36,7 +36,7 @@ uint4 QuadPositionNormal(QuadInstance instance)
 }
 
 // The WorldPositionToClip function prototype located in Common.hlsli must be defined if using CreateShapeVaryings.
-ShapeVaryings CreateShapeVaryings(QuadInstance instance, float3 tint, uint vertexID, float3 chunkPosition)
+ShapeVaryings CreateShapeVaryings(QuadInstance instance, uint instanceID, uint vertexID, float3 chunkPosition)
 {
     uint4 posNormal = QuadPositionNormal(instance);
     float3 vert = vertices[quads[4 * posNormal.w + quadsOffsetForTris[vertexID]]];
@@ -45,7 +45,7 @@ ShapeVaryings CreateShapeVaryings(QuadInstance instance, float3 tint, uint verte
     ShapeVaryings output;
     output.UV = uvOffsets[quadsOffsetForTris[vertexID]];
     output.textureIndex = instance.textureIndex;
-    output.tint = tint;
+    output.tintIndex = instanceID;
     output.position = WorldPositionToClip(worldPosition);
 
     return output;

@@ -26,10 +26,7 @@ public class ShapeShader
     private readonly uint vao;
     private readonly uint tbo;
     private readonly uint bufferSize;
-    private readonly nint memShapeInstanceTextureOffset;
-    private readonly nint memShapeInstanceTintOffset;
-    private readonly nint memShapeInstanceShapeOffset;
-    private readonly nint memRotationInstanceShapeOffset;
+    private readonly uint tintsBufferSize;
 
     private readonly GL GL;
     private readonly Dictionary<int, RegionBuffer> regionByID = [];
@@ -38,16 +35,21 @@ public class ShapeShader
     /// <summary>Registers or replaces a chunk for rendering and assignes them to a VBO to render.</summary>
     /// <param name="position">The world-space position of the chunk.</param>
     /// <param name="shapes">The collection of shape instances to render.</param>
-    public unsafe void RenderChunk(Vector3 position, ShapeInstance[] shapes)
+    /// <param name="tints">The collection of tints for each instance. Must be same Length as <paramref name="shapes"/>.</param>
+    public unsafe void RenderChunk(Vector3 position, ShapeInstance[] shapes, Vector3[] tints)
     {
         GL.UseProgram(shaderProgram);
         nuint size = (nuint)(shapes.Length * ShapeInstance.MemorySize);
-        if (!regionByID[currentRegionID].CanFit(size))
+        nuint tintsSize = (nuint)(tints.Length * sizeof(Vector3));
+        if (!regionByID[currentRegionID].CanFit(size, tintsSize))
             NewRegion();
-        int index = regionByID[currentRegionID].BytePointer;
-        regionByID[currentRegionID].SSBO.SetSubData(shapes, index, true);
+        int index = regionByID[currentRegionID].ShapesPointer;
+        int tintsIndex = regionByID[currentRegionID].TintsPointer;
+        regionByID[currentRegionID].Shapes.SetSubData(shapes, index, true);
+        regionByID[currentRegionID].Tints.SetSubData(tints, tintsIndex, true);
         ChunkRenderingData chunk = new(position, shapes, index / ShapeInstance.MemorySize, currentRegionID);
-        regionByID[currentRegionID].BytePointer += (int)size;
+        regionByID[currentRegionID].ShapesPointer += (int)size;
+        regionByID[currentRegionID].TintsPointer += (int)tintsSize;
         regionByID[currentRegionID].Chunks.Add(position);
         chunkByPos[position] = chunk;
         OutputErrors("Voxel Mat Creating Chunk");
@@ -61,7 +63,7 @@ public class ShapeShader
         regionByID[chunk.RegionID].Chunks.Remove(position);
         if (regionByID[chunk.RegionID].Chunks.Count == 0 && chunk.RegionID != currentRegionID)
         {
-            GL.DeleteBuffer(regionByID[chunk.RegionID].SSBO.Handle);
+            GL.DeleteBuffer(regionByID[chunk.RegionID].Shapes.Handle);
             regionByID.Remove(chunk.RegionID);
         }
         OutputErrors("Voxel Mat DeactivateChunk");
@@ -70,7 +72,8 @@ public class ShapeShader
     private unsafe void NewRegion()
     {
         ShaderStorageBufferObject<ShapeInstance> SSBO = new(GL, BufferUsageARB.DynamicDraw, 0, bufferSize);
-        regionByID.Add(++currentRegionID, new RegionBuffer(SSBO, bufferSize));
+        ShaderStorageBufferObject<Vector3> tints = new(GL, BufferUsageARB.DynamicDraw, 1, tintsBufferSize);
+        regionByID.Add(++currentRegionID, new RegionBuffer(SSBO, tints, bufferSize, tintsBufferSize));
         OutputErrors("Voxel Mat Creating Region");
     }
 
@@ -89,7 +92,7 @@ public class ShapeShader
         GL.BindTexture(GLEnum.Texture2DArray, tbo);
         foreach (RegionBuffer region in regionByID.Values)
         {
-            region.SSBO.BindBase();
+            region.Bind();
             OutputErrors("Voxel Mat Bind");
             foreach (ChunkRenderingData chunk in region.Chunks.Select(p => chunkByPos[p]))
             {
@@ -156,10 +159,7 @@ public class ShapeShader
         if (waste > 0)
             OutputLogs("Voxel Mat Instantiator", $"vramBufferRegionSize doesn't align with chunk size {chunkVolumeSize} and wastes {waste} bytes.");
         bufferSize = (uint)vramBufferRegionSize;
-        memShapeInstanceTextureOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.texture));
-        memShapeInstanceTintOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.tint));
-        memShapeInstanceShapeOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.shape));
-        memRotationInstanceShapeOffset = Marshal.OffsetOf<ShapeInstance>(nameof(ShapeInstance.rotation));
+        tintsBufferSize = (uint)sizeof(Vector3) * (bufferSize / GridAlignedQuadInstance.MemorySize);
         currentRegionID = -1;
         NewRegion();
         vao = GL.GenVertexArray();
@@ -241,13 +241,21 @@ public class ShapeShader
     }
 
 
-    private class RegionBuffer(ShaderStorageBufferObject<ShapeInstance> SSBO, uint BufferSize)
+    private class RegionBuffer(ShaderStorageBufferObject<ShapeInstance> SSBO, ShaderStorageBufferObject<Vector3> Tints, uint BufferSize, uint TintBufferSize)
     {
-        public readonly ShaderStorageBufferObject<ShapeInstance> SSBO = SSBO;
-        public int BytePointer = 0;
+        public readonly ShaderStorageBufferObject<ShapeInstance> Shapes = SSBO;
+        public readonly ShaderStorageBufferObject<Vector3> Tints = Tints;
+        public int ShapesPointer = 0;
+        public int TintsPointer = 0;
         public readonly HashSet<Vector3> Chunks = [];
 
-        public bool CanFit(nuint size) =>
-            (nuint)BytePointer + size < BufferSize;
+        public bool CanFit(nuint size, nuint tintSize) =>
+            (nuint)ShapesPointer + size < BufferSize && (nuint)TintsPointer + tintSize < TintBufferSize;
+
+        public void Bind()
+        {
+            Shapes.BindBase();
+            Tints.BindBase();
+        }
     }
 }

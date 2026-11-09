@@ -41,9 +41,9 @@ public class Ramp(int cubeBackFaceShapeID, int cubeBottomFaceShapeID) : IShape
         return [ new Shape(slopeVerts), new Shape(leftTriangleVerts), new Shape(rightTriangleVerts) ];
     }
 
-    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible,  Direction up, int forward)
+    public BlockRenderInstance Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible,  Direction up, int forward)
     {
-        List<ShapeInstance> toReturn = [];
+        List<ShapeInstanceAndTint> toReturn = [];
         bool drawSlope = false;
         Vector3[] tints = [ Vector3.One, Vector3.One, Vector3.One ]; // Top, Left, Right
         for (int i = 0; i < facesVisible.Count; i++)
@@ -64,22 +64,24 @@ public class Ramp(int cubeBackFaceShapeID, int cubeBottomFaceShapeID) : IShape
                 tints[2] = tints[2] == Vector3.One ? tint : tints[2];
             }
             else // Back or Bottom
-                toReturn.Add(new
+            {
+                ShapeInstance shapeInstance = new
                 (
                     position,
                     renderData.GetTextureID(facesVisible[i]),
-                    faceTints[i],
                     facesVisible[i] == Direction.Back ? cubeBackFaceShapeID : cubeBottomFaceShapeID,
                     up,
                     forward
-                ));
+                );
+                toReturn.Add(new(shapeInstance, faceTints[i]));
+            }
         }
         if (drawSlope)
         {
-            toReturn.Add(new(position, renderData.GetTextureID(Direction.Top), tints[0], slopeID, up, forward));
-            toReturn.Add(new(position, renderData.GetTextureID(Direction.Left), tints[1], leftTriangleID, up, forward));
-            toReturn.Add(new(position, renderData.GetTextureID(Direction.Right), tints[2], rightTriangleID, up, forward));
+            toReturn.Add(new(new(position, renderData.GetTextureID(Direction.Top), slopeID, up, forward), tints[0]));
+            toReturn.Add(new(new(position, renderData.GetTextureID(Direction.Left), leftTriangleID, up, forward), tints[1]));
+            toReturn.Add(new(new(position, renderData.GetTextureID(Direction.Right), rightTriangleID, up, forward), tints[2]));
         }
-        return [.. toReturn];
+        return new([.. toReturn], []);
     }
 }

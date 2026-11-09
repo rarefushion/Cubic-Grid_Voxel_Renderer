@@ -294,17 +294,27 @@ static class Program
             ushort[] negXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[4] * chunkLength), out ushort[]? negXBlocks) ? negXBlocks : [];
             ushort[] posXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[5] * chunkLength), out ushort[]? posXBlocks) ? posXBlocks : [];
             cullingHandler = BlockCulling.CullChunk(kvp.Value, cullingHandler, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
-            if (cullingHandler.shapeInstances.Count > 0 || cullingHandler.quadInstances.Count > 0)
+            if (cullingHandler.shapeInstancesAndTints.Count > 0 || cullingHandler.quadInstancesAndTints.Count > 0)
                 chunksToRender.TryAdd(kvp.Key, cullingHandler);
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Render
         foreach ((Vector3 chunkPos, CullingHandler cullingHandler) in chunksToRender)
         {
-            if (cullingHandler.quadInstances.Count > 0)
-                quadShader.RenderChunk(chunkPos, [.. cullingHandler.quadInstances], [.. cullingHandler.quadInstanceTints]);
-            if (cullingHandler.shapeInstances.Count > 0)
-                shapeShader.RenderChunk(chunkPos, [.. cullingHandler.shapeInstances]);
+            if (cullingHandler.quadInstancesAndTints.Count > 0)
+                quadShader.RenderChunk
+                (
+                    chunkPos,
+                    [.. cullingHandler.quadInstancesAndTints.Select(q => q.QuadInstance)],
+                    [.. cullingHandler.quadInstancesAndTints.Select(q => q.Tints)]
+                );
+            if (cullingHandler.shapeInstancesAndTints.Count > 0)
+                shapeShader.RenderChunk
+                (
+                    chunkPos,
+                    [.. cullingHandler.shapeInstancesAndTints.Select(q => q.ShapeInstance)],
+                    [.. cullingHandler.shapeInstancesAndTints.Select(q => q.Tint)]
+                );
         }
         threadBatch.Dispose();
     }
@@ -313,9 +323,8 @@ static class Program
     {
         public Vector3 chunkPosition;
 
-        public List<GridAlignedQuadInstance> quadInstances;
-        public List<Vector3> quadInstanceTints;
-        public List<ShapeInstance> shapeInstances;
+        public List<GridAlignedQuadInstanceAndTint> quadInstancesAndTints;
+        public List<ShapeInstanceAndTint> shapeInstancesAndTints;
 
         private List<Vector3> tintStorage; // We don't want to allocate this for every shape
 
@@ -325,9 +334,8 @@ static class Program
 
         public void CullBegan()
         {
-            shapeInstances = [];
-            quadInstances = [];
-            quadInstanceTints = [];
+            quadInstancesAndTints = [];
+            shapeInstancesAndTints = [];
             tintStorage = [];
         }
 
@@ -343,8 +351,9 @@ static class Program
                 {
                     float shadow = GetShadow(blockPos, block, facesVisible[i]);
                     BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[5];
-                    quadInstanceTints.Add(grassSideDirtRD.GetTint(facesVisible[i]));
-                    quadInstances.AddRange(((GridAlignedQuads)grassSideDirtRD.shape).InstanceQuads(localBlockPosition, grassSideDirtRD, [facesVisible[i]]));
+                    BlockRenderInstance grassSideDirtInstance = grassSideDirtRD
+                        .InstanceMixTints(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0);
+                    quadInstancesAndTints.AddRange(grassSideDirtInstance.quadInstancesAndTints);
                 }
                 tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
             }
@@ -363,20 +372,9 @@ static class Program
                     forward = 3;
             }
 
-            switch (renderData.shape)
-            {
-                case GridAlignedQuads quads:
-                    for (int i = 0; i < facesVisible.Count; i++)
-                    {
-                        tintStorage[i] *= renderData.GetTint(facesVisible[i]);
-                        quadInstanceTints.Add(tintStorage[i]);
-                    }
-                    quadInstances.AddRange(quads.InstanceQuads(localBlockPosition, renderData, facesVisible));
-                    break;
-                default:
-                    shapeInstances.AddRange(renderData.InstanceMixTints(localBlockPosition, tintStorage, facesVisible, up, forward));
-                    break;
-            }
+            BlockRenderInstance blockInstance = renderData.InstanceMixTints(localBlockPosition, tintStorage, facesVisible, up, forward);
+            shapeInstancesAndTints.AddRange(blockInstance.shapeInstancesAndTints);
+            quadInstancesAndTints.AddRange(blockInstance.quadInstancesAndTints);
         }
 
         private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)

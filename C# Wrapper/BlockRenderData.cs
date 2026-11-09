@@ -67,13 +67,13 @@ public struct BlockRenderData
         _ => throw new Exception($"Direction({face}) does not exist.")
     };
 
-    private readonly ShapeInstance[] Instance(Vector3 pos, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward) =>
+    private readonly BlockRenderInstance Instance(Vector3 pos, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward) =>
         shape.Instance(pos, this, faceTints, facesVisible, up, forward);
 
     /// <summary>Make a new instance of this block.</summary>
     /// <param name="facesVisible">Which faces are visible, aka the block neighbors that are transparent.</param>
     /// <returns>The shape instances to render.</returns>
-    public readonly ShapeInstance[] Instance(Vector3 pos, List<Direction> facesVisible, Direction up, int forward)
+    public readonly BlockRenderInstance Instance(Vector3 pos, List<Direction> facesVisible, Direction up, int forward)
     {
         List<Vector3> tints = [];
         foreach (Direction face in facesVisible)
@@ -87,7 +87,7 @@ public struct BlockRenderData
     /// Mix these face's tints with this blocks base colors.
     /// Must match <see cref="facesVisible"/>, e.g <see cref="faceTints"/>[0] tints <see cref="facesVisible"/>[0] ect.</param>
     /// <returns>The shape instances to render.</returns>
-    public readonly ShapeInstance[] InstanceMixTints(Vector3 pos, List<Vector3> faceTints,  List<Direction> facesVisible, Direction up, int forward)
+    public readonly BlockRenderInstance InstanceMixTints(Vector3 pos, List<Vector3> faceTints,  List<Direction> facesVisible, Direction up, int forward)
     {
         for (int i = 0; i < facesVisible.Count; i++)
             faceTints[i] *= GetTint(facesVisible[i]);
@@ -100,7 +100,7 @@ public struct BlockRenderData
     /// Ignore and replace this blocks base colors with these face's tints.
     /// Must match <see cref="facesVisible"/>, e.g <see cref="faceTints"/>[0] tints <see cref="facesVisible"/>[0] ect.</param>
     /// <returns>The shape instances to render.</returns>
-    public readonly ShapeInstance[] InstanceReplaceTints(Vector3 pos, List<Vector3> faceTints,  List<Direction> facesVisible, Direction up, int forward) =>
+    public readonly BlockRenderInstance InstanceReplaceTints(Vector3 pos, List<Vector3> faceTints,  List<Direction> facesVisible, Direction up, int forward) =>
         Instance(pos, faceTints, facesVisible, up, forward);
 
     /// <summary>Helps with converting texture names into <see cref="BlockRenderData"/>.</summary>

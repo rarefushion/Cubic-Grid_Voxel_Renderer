@@ -1,7 +1,10 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 using GalensUnified.CubicGrid.Core;
 
 namespace GalensUnified.CubicGrid.Renderer.NET;
+
+public readonly record struct GridAlignedQuadInstanceAndTint(GridAlignedQuadInstance QuadInstance, Vector3 Tints);
 
 /// <summary>Instances a grid aligned quad with a unique position and texture.</summary>
 /// <param name="posX">The quads grid position on the X axis local to the chunks position.</param>

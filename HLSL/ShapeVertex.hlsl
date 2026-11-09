@@ -19,5 +19,5 @@ ShapeVaryings VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceI
 {
     ShapeInstance instance = ShapeInstances[instanceID];
     ShapeVertex vert = ShapeVertices[vertexID + ShapeIndex(instance) * verticesPerShape];
-    return CreateShapeVaryings(instance, vert, chunkPos);
+    return CreateShapeVaryings(instance, instanceID, vert, chunkPos);
 }

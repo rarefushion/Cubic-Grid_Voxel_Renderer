@@ -14,16 +14,19 @@ public class GridAlignedQuads() : IShape
         return [ new([]), new([]), new([]), new([]), new([]), new([]) ];
     }
 
-    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward)
+    public BlockRenderInstance Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward)
     {
-        throw new Exception("GridAlignedQuads are not actually ShapeInstances, these need to be instanced with GridAlignedQuadInstance.");
-    }
-
-    public GridAlignedQuadInstance[] InstanceQuads(Vector3 position, BlockRenderData renderData, List<Direction> facesVisible)
-    {
-        GridAlignedQuadInstance[] toReturn = new GridAlignedQuadInstance[facesVisible.Count];
+        GridAlignedQuadInstanceAndTint[] toReturn = new GridAlignedQuadInstanceAndTint[facesVisible.Count];
         for (int i = 0; i < facesVisible.Count; i++)
-            toReturn[i] = new((byte)position.X, (byte)position.Y, (byte)position.Z, facesVisible[i], renderData.GetTextureID(facesVisible[i]));
-        return toReturn;
+        {
+            GridAlignedQuadInstance quad = new
+            (
+                (byte)position.X, (byte)position.Y, (byte)position.Z,
+                facesVisible[i],
+                renderData.GetTextureID(facesVisible[i])
+            );
+            toReturn[i] = new(quad, faceTints[i]);
+        }
+        return new([], toReturn);
     }
 }

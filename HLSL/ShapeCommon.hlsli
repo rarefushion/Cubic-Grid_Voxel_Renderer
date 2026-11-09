@@ -47,15 +47,14 @@ struct ShapeVertex
 struct ShapeInstance
 {
     float posX, posY, posZ;
-    int textureIndex;
-    uint shapeRotation;
-    float tintR, tintG, tintB;
+    uint textureAndShapeAndRotation; // bytes 1 and 2 for texture index. byte 3 for shape index. byte 4 for rotation.
 };
-uint ShapeIndex(ShapeInstance instance) { return instance.shapeRotation & 0xFFFFu; }
-uint ShapeRotation(ShapeInstance instance) { return instance.shapeRotation >> 16; }
+uint ShapeTexture(ShapeInstance instance) { return instance.textureAndShapeAndRotation & 0xFFFF; }
+uint ShapeIndex(ShapeInstance instance) { return (instance.textureAndShapeAndRotation >> 16) & 0xFF; }
+uint ShapeRotation(ShapeInstance instance) { return (instance.textureAndShapeAndRotation >> 24) & 0xFF; }
 
 // The WorldPositionToClip function prototype in Common.hlsli must be defined if using CreateShapeVaryings.
-ShapeVaryings CreateShapeVaryings(ShapeInstance instance, ShapeVertex vert, float3 chunkPosition)
+ShapeVaryings CreateShapeVaryings(ShapeInstance instance, uint instanceID, ShapeVertex vert, float3 chunkPosition)
 {
     float3 rotatedVert = mul(vert.position - 0.5, ROTATION[ShapeRotation(instance)]) + 0.5;
     float3 instancePos = float3(instance.posX, instance.posY, instance.posZ);
@@ -63,8 +62,8 @@ ShapeVaryings CreateShapeVaryings(ShapeInstance instance, ShapeVertex vert, floa
 
     ShapeVaryings output;
     output.UV = vert.uv;
-    output.textureIndex = instance.textureIndex;
-    output.tint = float3(instance.tintR, instance.tintG, instance.tintB);
+    output.textureIndex = ShapeTexture(instance);
+    output.tintIndex = instanceID;
     output.position = WorldPositionToClip(worldPos);
 
     return output;
