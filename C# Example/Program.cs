@@ -15,7 +15,7 @@ static class Program
     // MSAA allows partial transparency.
     // Disabling limits to cutout transparency.
     const bool MSAATransparency = true;
-    const int worldLengthInChunks = 33;
+    const int worldLengthInChunks = 19;
     const float shadowIntensity = 0.3f; // light level of shadows 0-1
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
@@ -136,18 +136,18 @@ static class Program
         graphics.ClearColor(System.Drawing.Color.CornflowerBlue);
         window.Resize += size => graphics.Viewport(0, 0, (uint)window.FramebufferSize.X, (uint)window.FramebufferSize.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        int chunkLength = 16;
+        int chunkLength = 32;
         // Create Grid aligned cubes shader
         GridAlignedQuadShader quadShader = new
         (
             graphics,
             Path.Combine(assets.FullName, "GLSL SpriV Translation"),
-         chunkLength,
-         chunkLength * chunkLength * chunkLength * GridAlignedQuadInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
-         cam.NearPlane,
-         [.. textures.Select(t => t.Image)],
-         messageErr => Console.WriteLine(messageErr),
-         messageLog => Console.WriteLine(messageLog)
+            chunkLength,
+            chunkLength * chunkLength * chunkLength * GridAlignedQuadInstance.MemorySize * 32, // ChunkVolume * BlockInstance memory size * 32 chunks, 32 is adjustable.
+            cam.NearPlane,
+            [.. textures.Select(t => t.Image)],
+            messageErr => Console.WriteLine(messageErr),
+            messageLog => Console.WriteLine(messageLog)
         );
         // Create genaric shapes shader
         ShapeShader shapeShader = new
@@ -260,6 +260,7 @@ static class Program
                     -49 => 0,   // Air slice
                     _ => 3,     // Stone default
                 };
+                blocks[i] = blockPos.Y < -50 && blockPos.Y % 14 == 0 ? (ushort)2 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 > 80) ? (ushort)0 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 == 80 && Math.Abs(blockPos.X) % 96 > 80) ? (ushort)4 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 == 0 && blockPos.X != 0) ? (ushort)4 : blocks[i];
@@ -267,6 +268,7 @@ static class Program
                 blocks[i] = (Math.Abs(blockPos.Z) % 96 > 80 && Math.Abs(blockPos.X) % 96 == 80) ? (ushort)4 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && blockPos.Y > 0 && Math.Abs(blockPos.X) % 10 > 5) ? (ushort)6 : blocks[i];
                 blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && blockPos.Y > 0 && Math.Abs(blockPos.Z) % 14 > 7) ? (ushort)6 : blocks[i];
+                blocks[i] = blockPos == new Vector3D<int>(3, 3, 3) ? (ushort)1 : blocks[i];
                 if (blocks[i] != blocks[0])
                     allSame = false;
             }
@@ -294,19 +296,19 @@ static class Program
             ushort[] negXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[4] * chunkLength), out ushort[]? negXBlocks) ? negXBlocks : [];
             ushort[] posXChunk = chunkByPos.TryGetValue(kvp.Key + (BlockCulling.directions[5] * chunkLength), out ushort[]? posXBlocks) ? posXBlocks : [];
             cullingHandler = BlockCulling.CullChunk(kvp.Value, cullingHandler, chunkLength,  negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
-            if (cullingHandler.shapeInstancesAndTints.Count > 0 || cullingHandler.quadInstancesAndTints.Count > 0)
+            if (cullingHandler.shapeInstancesAndTints.Count > 0 || cullingHandler.quadInstancesAndTints.Length > 0)
                 chunksToRender.TryAdd(kvp.Key, cullingHandler);
         }).ContinueWith(T => { if (T.Exception != null) throw T.Exception; });
         Task.WhenAll(tasks).GetAwaiter().GetResult();
         // Render
         foreach ((Vector3 chunkPos, CullingHandler cullingHandler) in chunksToRender)
         {
-            if (cullingHandler.quadInstancesAndTints.Count > 0)
+            if (cullingHandler.quadInstancesAndTints.Length > 0)
                 quadShader.RenderChunk
                 (
                     chunkPos,
                     [.. cullingHandler.quadInstancesAndTints.Select(q => q.QuadInstance)],
-                    [.. cullingHandler.quadInstancesAndTints.Select(q => q.Tints)]
+                    [.. cullingHandler.quadInstancesAndTints.SelectMany(q => q.Tints)]
                 );
             if (cullingHandler.shapeInstancesAndTints.Count > 0)
                 shapeShader.RenderChunk
@@ -317,16 +319,19 @@ static class Program
                 );
         }
         threadBatch.Dispose();
+        chunkByPos.Clear();
+        chunksToRender.Clear();
     }
 
     public struct CullingHandler : IBlockCullingHandler
     {
         public Vector3 chunkPosition;
 
-        public List<GridAlignedQuadInstanceAndTint> quadInstancesAndTints;
+        public GridAlignedQuadInstanceAndTints[] quadInstancesAndTints;
         public List<ShapeInstanceAndTint> shapeInstancesAndTints;
 
         private List<Vector3> tintStorage; // We don't want to allocate this for every shape
+        private GreedyQuadInstancer greedyQuadMesher;
 
         static readonly FastNoiseLite noise = new();
         static readonly Vector3 color1 = new(0.8f, 0.7f, 1.0f);
@@ -334,9 +339,9 @@ static class Program
 
         public void CullBegan()
         {
-            quadInstancesAndTints = [];
             shapeInstancesAndTints = [];
             tintStorage = [];
+            greedyQuadMesher = new();
         }
 
         public readonly void ShapeVisible(Vector3 localBlockPosition, ushort block, List<Direction> facesVisible)
@@ -353,7 +358,7 @@ static class Program
                     BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[5];
                     BlockRenderInstance grassSideDirtInstance = grassSideDirtRD
                         .InstanceMixTints(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0);
-                    quadInstancesAndTints.AddRange(grassSideDirtInstance.quadInstancesAndTints);
+                    greedyQuadMesher.AddRange(grassSideDirtInstance.quadInstancesAndTints);
                 }
                 tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
             }
@@ -374,7 +379,7 @@ static class Program
 
             BlockRenderInstance blockInstance = renderData.InstanceMixTints(localBlockPosition, tintStorage, facesVisible, up, forward);
             shapeInstancesAndTints.AddRange(blockInstance.shapeInstancesAndTints);
-            quadInstancesAndTints.AddRange(blockInstance.quadInstancesAndTints);
+            greedyQuadMesher.AddRange(blockInstance.quadInstancesAndTints);
         }
 
         private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)
@@ -389,6 +394,8 @@ static class Program
             else if (blockPos.Y <= 0 && blockPos.X != 0 && Math.Abs(blockPos.Z) % 14 > 7)
                 shadow = shadowIntensity;
             else if (faceNormal == Direction.Bottom && !transparent)
+                shadow = shadowIntensity;
+            else if (block == 6 && (faceNormal is Direction.Bottom or Direction.Back))
                 shadow = shadowIntensity;
             return shadow;
         }
@@ -411,5 +418,7 @@ static class Program
             }
             return tint * shadow;
         }
+
+        public void CullFinalize() => quadInstancesAndTints = greedyQuadMesher.Merge();
     }
 }

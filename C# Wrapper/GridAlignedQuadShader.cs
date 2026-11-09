@@ -1,4 +1,5 @@
 using System.Numerics;
+using GalensUnified.CubicGrid.Core;
 using GalensUnified.Graphics;
 using GalensUnified.Graphics.Buffers;
 using Silk.NET.GLFW;
@@ -41,6 +42,17 @@ public class GridAlignedQuadShader
             NewRegion();
         int index = regionByID[currentRegionID].QuadsPointer;
         int tintsIndex = regionByID[currentRegionID].TintsPointer;
+        for (int i = 0; i < quads.Length; i++)
+        {
+            quads[i] = new
+            (
+                quads[i].posX, quads[i].posY, quads[i].posZ,
+                (Direction)quads[i].normal,
+                quads[i].texture,
+                quads[i].scaleX, quads[i].scaleY,
+                (uint)(quads[i].tintIndex + tintsIndex / sizeof(Vector3))
+            );
+        }
         regionByID[currentRegionID].Quads.SetSubData(quads, index, true);
         regionByID[currentRegionID].Tints.SetSubData(tints, tintsIndex, true);
         ChunkRenderingData chunk = new(position, quads, tints, index / GridAlignedQuadInstance.MemorySize, currentRegionID);

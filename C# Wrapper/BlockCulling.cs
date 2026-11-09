@@ -87,6 +87,7 @@ public static class BlockCulling
             if (directionsVisible.Count > 0)
                 handler.ShapeVisible(pos, block, directionsVisible);
         }
+        handler.CullFinalize();
         return handler;
     }
 
@@ -150,6 +151,7 @@ public static class BlockCulling
             if (directionsVisible.Count > 0)
                 handler.ShapeVisible(pos, block, directionsVisible);
         }
+        handler.CullFinalize();
         return handler;
     }
 }

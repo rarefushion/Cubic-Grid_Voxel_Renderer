@@ -62,6 +62,7 @@ ShapeVaryings CreateShapeVaryings(ShapeInstance instance, uint instanceID, Shape
 
     ShapeVaryings output;
     output.UV = vert.uv;
+    output.UVMax = float2(1, 1);
     output.textureIndex = ShapeTexture(instance);
     output.tintIndex = instanceID;
     output.position = WorldPositionToClip(worldPos);

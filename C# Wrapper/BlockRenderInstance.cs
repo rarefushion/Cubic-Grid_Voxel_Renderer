@@ -6,9 +6,9 @@ namespace GalensUnified.CubicGrid.Renderer.NET;
 public readonly struct BlockRenderInstance
 (
     ShapeInstanceAndTint[] shapeInstancesAndTints,
-    GridAlignedQuadInstanceAndTint[] quadInstancesAndTints
+    GridAlignedQuadInstanceAndTints[] quadInstancesAndTints
 )
 {
     public readonly ShapeInstanceAndTint[] shapeInstancesAndTints = shapeInstancesAndTints;
-    public readonly GridAlignedQuadInstanceAndTint[] quadInstancesAndTints = quadInstancesAndTints;
+    public readonly GridAlignedQuadInstanceAndTints[] quadInstancesAndTints = quadInstancesAndTints;
 }

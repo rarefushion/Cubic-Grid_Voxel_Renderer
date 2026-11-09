@@ -19,11 +19,15 @@ static const float2 uvOffsets[4] =
     float2(1.0, 0.0),
     float2(1.0, 1.0)
 };
+static const float3 scaleXAxisMask[6] = { float3(1, 0, 0), float3(1, 0, 0), float3(1, 0, 0), float3(1, 0, 0), float3(0, 0, 1), float3(0, 0, 1) };
+static const float3 scaleYAxisMask[6] = { float3(0, 1, 0), float3(0, 1, 0), float3(0, 0, 1), float3(0, 0, 1), float3(0, 1, 0), float3(0, 1, 0) };
+static const float3 normalAxisMask[6] = { float3(0, 0, 1), float3(0, 0, 1), float3(0, 1, 0), float3(0, 1, 0), float3(1, 0, 0), float3(1, 0, 0) };
 
 struct QuadInstance
 {
-    uint posXYZAndNormal;
-    int textureIndex;
+    uint posXYZAndNormal; // bytes 1, 2, 3 for pos X, Y, Z respectively. byte 4 for normal face.
+    uint textureAndScale; // bytes 1 and 2 for texture index. bytes 3, 4 for X, Y scale respectively.
+    uint tintIndex;
 };
 uint4 QuadPositionNormal(QuadInstance instance)
 {
@@ -34,18 +38,29 @@ uint4 QuadPositionNormal(QuadInstance instance)
     toReturn.w = (instance.posXYZAndNormal >> 24);
     return toReturn;
 }
+int QuadTextureIndex(QuadInstance instance) { return instance.textureAndScale & 0xFFFF; }
+float2 QuadScale(QuadInstance instance)
+{
+    float2 toReturn;
+    toReturn.x = (instance.textureAndScale >> 16) & 0xFF;
+    toReturn.y = (instance.textureAndScale >> 24) & 0xFF;
+    return toReturn;
+}
 
 // The WorldPositionToClip function prototype located in Common.hlsli must be defined if using CreateShapeVaryings.
 ShapeVaryings CreateShapeVaryings(QuadInstance instance, uint instanceID, uint vertexID, float3 chunkPosition)
 {
+    float2 instanceScale = QuadScale(instance) + float2(1, 1);
     uint4 posNormal = QuadPositionNormal(instance);
-    float3 vert = vertices[quads[4 * posNormal.w + quadsOffsetForTris[vertexID]]];
+    float3 vertScale = scaleXAxisMask[posNormal.w] * instanceScale.x + scaleYAxisMask[posNormal.w] * instanceScale.y + normalAxisMask[posNormal.w];
+    float3 vert = vertices[quads[4 * posNormal.w + quadsOffsetForTris[vertexID]]] * vertScale;
     float3 worldPosition = chunkPosition + posNormal.xyz + vert;
 
     ShapeVaryings output;
-    output.UV = uvOffsets[quadsOffsetForTris[vertexID]];
-    output.textureIndex = instance.textureIndex;
-    output.tintIndex = instanceID;
+    output.UV = uvOffsets[quadsOffsetForTris[vertexID]] * instanceScale;
+    output.UVMax = instanceScale;
+    output.textureIndex = QuadTextureIndex(instance);
+    output.tintIndex = instance.tintIndex;
     output.position = WorldPositionToClip(worldPosition);
 
     return output;

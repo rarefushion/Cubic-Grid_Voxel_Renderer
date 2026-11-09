@@ -16,16 +16,18 @@ public class GridAlignedQuads() : IShape
 
     public BlockRenderInstance Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward)
     {
-        GridAlignedQuadInstanceAndTint[] toReturn = new GridAlignedQuadInstanceAndTint[facesVisible.Count];
+        GridAlignedQuadInstanceAndTints[] toReturn = new GridAlignedQuadInstanceAndTints[facesVisible.Count];
         for (int i = 0; i < facesVisible.Count; i++)
         {
             GridAlignedQuadInstance quad = new
             (
                 (byte)position.X, (byte)position.Y, (byte)position.Z,
                 facesVisible[i],
-                renderData.GetTextureID(facesVisible[i])
+                renderData.GetTextureID(facesVisible[i]),
+                0, 0,
+                (uint)i
             );
-            toReturn[i] = new(quad, faceTints[i]);
+            toReturn[i] = new(quad, [ faceTints[i] ]);
         }
         return new([], toReturn);
     }

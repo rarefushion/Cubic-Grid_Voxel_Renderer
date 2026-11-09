@@ -13,4 +13,6 @@ public interface IBlockCullingHandler
     /// <param name="block">The block id.</param>
     /// <param name="facesVisible">All of the neighbor blocks that were transparent.</param>
     void ShapeVisible(Vector3 localBlockPosition, ushort block, List<Direction> facesVisible);
+    /// <summary>Called when all of the visible faces have been sent to <see cref="ShapeVisible"/>.</summary>
+    void CullFinalize();
 }
